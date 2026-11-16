@@ -98,6 +98,17 @@ public sealed class SubmissionService(Db db, SubmissionRepository repo, AuditRep
         return await SubmissionAssembler.Build(s, repo, (await repo.ById(s, row.Id))!);
     });
 
+    /// <summary>The owner takes back a submission that is still waiting, to edit it. Once a reviewer has decided, it cannot be withdrawn.</summary>
+    public Task<SubmissionView> Withdraw(AppUser user, string taskKey) => db.Tx(async s =>
+    {
+        await repo.LockUser(s, user.Id);
+        var row = await repo.LockMine(s, user.Id, taskKey) ?? throw ApiException.NotFound();
+        if (row.Status != "submitted") throw new ApiException(409, "Only a submission that is waiting for review can be withdrawn");
+        await repo.SetStatus(s, row.Id, "draft");
+        await audit.Record(s, user.Id, "submission.withdraw", row.Id.ToString());
+        return await SubmissionAssembler.Build(s, repo, (await repo.ById(s, row.Id))!);
+    });
+
     /// <summary>A file can be downloaded by its owner and by reviewers and admins. Anyone else is told it does not exist.</summary>
     public Task<StoredFile> Download(AppUser user, Guid itemId) => db.Read(async s =>
     {

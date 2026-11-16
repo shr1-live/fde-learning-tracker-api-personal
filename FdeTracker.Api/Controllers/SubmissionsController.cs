@@ -41,6 +41,9 @@ public sealed class SubmissionsController(SubmissionService submissions) : ApiCo
     [HttpDelete("{taskKey}/items/{itemId:guid}"), RequireRole("member", "admin")]
     public async Task<IActionResult> DeleteItem([RegularExpression(Key)] string taskKey, Guid itemId) => Ok(await submissions.DeleteItem(CurrentUser, taskKey, itemId));
 
+    [HttpPost("{taskKey}/withdraw"), RequireRole("member", "admin")]
+    public async Task<IActionResult> Withdraw([RegularExpression(Key)] string taskKey) => Ok(await submissions.Withdraw(CurrentUser, taskKey));
+
     [HttpPost("{taskKey}/submit"), RequireRole("member", "admin")]
     public async Task<IActionResult> Submit([RegularExpression(Key)] string taskKey) => Ok(await submissions.Submit(CurrentUser, taskKey));
 

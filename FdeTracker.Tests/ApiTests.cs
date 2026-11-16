@@ -577,4 +577,28 @@ public sealed class ApiTests(ApiFixture api) : IClassFixture<ApiFixture>
         var message = (string)empty.Body["error"]!;
         Assert.Contains("proof", message); Assert.Contains("rate yourself", message);
     }
+
+    [Fact]
+    public async Task T34_a_learner_can_withdraw_a_waiting_submission_but_not_a_decided_one()
+    {
+        var path = Key("withdraw-demo");
+        await api.Call("PUT", path, D, new { note = "n", learned = "l", rating = 4 });
+        await api.Call("POST", path + "/links", D, new { label = "Repo", url = "https://example.com/r" });
+        Assert.Equal("submitted", (string)(await api.Call("POST", path + "/submit", D)).Body["status"]!);
+
+        Assert.Equal(403, (await api.Call("POST", path + "/withdraw", C)).Status);   // a reviewer cannot
+        Assert.Equal(404, (await api.Call("POST", path + "/withdraw", F)).Status);   // another learner has no such submission
+        var back = await api.Call("POST", path + "/withdraw", D);
+        Assert.Equal(200, back.Status);
+        Assert.Equal("draft", (string)back.Body["status"]!);
+        Assert.True((bool)back.Body["editable"]!);
+        var queue = await api.Call("GET", "/api/review/submissions?status=submitted", C);
+        Assert.DoesNotContain(queue.Body.AsArray(), x => (string)x!["task_key"]! == "withdraw-demo"); // gone from the review queue
+        Assert.Equal(409, (await api.Call("POST", path + "/withdraw", D)).Status);   // a draft is not waiting
+
+        Assert.Equal("submitted", (string)(await api.Call("POST", path + "/submit", D)).Body["status"]!); // and it can be sent again
+        var id = (string)(await api.Call("GET", path, D)).Body["id"]!;
+        await api.Call("POST", $"/api/review/submissions/{id}", C, new { decision = "approve" });
+        Assert.Equal(409, (await api.Call("POST", path + "/withdraw", D)).Status);   // decided: too late
+    }
 }
