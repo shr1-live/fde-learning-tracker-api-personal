@@ -61,7 +61,7 @@ How it protects the result:
 - Anything unexpected from the model becomes a clean "unusable answer" (502), never a crash. Provider errors, timeouts and rate limits become clear messages; the provider's body and the key are never shown.
 - Every call is logged (model, prompt version, tokens, latency, status; no prompt text) and counts toward the daily cap, including failed and cancelled calls.
 
-Prompt versions live in `FdeTracker.Api/Prompts/analyze.v1.md` to `v3.md`; `v2` is the default because it scored best in the Day 2 comparison (see `docs/evals/day2-local-comparison.md`); any version can be chosen per request.
+Prompt versions live in `FdeTracker.Api/Prompts/analyze.v1.md` to `v4.md`; `v4` is the default because it scored best (94%) for the model in use in the Day 2 comparison (see `docs/evals/day2-local-v2-comparison.md`; on the smaller 1.5b model `v2` won, so re-run the comparison when the model changes); any version can be chosen per request.
 
 ### Assistant settings (environment variables only)
 
@@ -74,6 +74,7 @@ Prompt versions live in `FdeTracker.Api/Prompts/analyze.v1.md` to `v3.md`; `v2` 
 | `LLM_DAILY_CAP` | analyses per person per 24 hours (default 20) |
 | `LLM_TIMEOUT_SECONDS`, `LLM_RETRY_DELAY_MS` | per-call timeout (default 30) and retry wait (default 1000) |
 | `LLM_MAX_TOKENS` | longest answer paid for per call (default 3000); raise it if several candidates get cut off |
+| `RATE_LIMIT_PER_MINUTE`, `WRITE_LIMIT_PER_MINUTE` | requests per minute per address (default 240) and writes per minute per person (default 40) |
 
 Without `LLM_API_KEY` and `LLM_MODEL` the endpoint answers 503 and nothing else is affected.
 
@@ -97,6 +98,19 @@ dotnet run --project FdeTracker.Evals -- day2    # every prompt version on the s
 ```
 
 Results and generated reports are written to `docs/evals/`. The frontend's Week 1 report page reads the same results files.
+
+## Task assistant (Day 3: tool calling)
+
+`POST /api/task-assistant/message` takes a plain-words request ("add a task: review PR 42, due 2026-12-04, high priority"). The model replies with a fixed JSON request for one tool (`create_task`, `list_tasks`, `update_task`, `delete_task`; prompt in `Prompts/tasks.v1.md`) or with a final answer. Our code does the rest:
+
+- **Validation:** every argument is checked for type, length, allowed values, real dates and unknown names. A bad request is refused, the refusal is fed back to the model once as data, and the loop stops after 4 steps.
+- **Ownership:** every query is scoped to the signed-in person. The model cannot name a person or reach someone else's task.
+- **Confirmation:** a delete only creates a pending question (`pending_actions`, expires in 10 minutes). `POST /api/task-assistant/confirm/{id}` with `{"approve": true|false}` decides it once, re-checks it, and only then deletes. Ignoring or cancelling it changes nothing. If the task was renamed or removed after the question was asked, the yes is refused (the person approved something else). An answer that comes too late is refused with 410 and logged as expired.
+- **Untrusted text:** task titles that come back from a tool reach the model escaped, inside tags, as data.
+- **Log:** every call, including refused ones, is stored in `tool_calls` with outcome and speed (`GET /api/task-assistant/log`); `GET /api/task-assistant/tasks` lists the person's tasks.
+- **Limits:** counts against the same daily cap as the recruitment assistant (one reservation per message), 200 tasks per person.
+
+A small local model (qwen2.5:3b) handled create, list and update but not delete; see `docs/WEEK1-REPORT.md`. Use a stronger model for real use.
 
 ## Submissions and review
 
@@ -146,6 +160,8 @@ dotnet test        # needs Docker running: starts a throwaway Postgres
 | PUT | `/api/programs/{slug}/items/{id}/progress` | approved |
 | GET | `/api/assistant/usage` | approved |
 | POST | `/api/assistant/analyze` | approved, daily cap |
+| POST | `/api/task-assistant/message`, `/confirm/{id}` | approved, daily cap |
+| GET | `/api/task-assistant/tasks`, `/log` | approved (own) |
 | GET | `/api/submissions` | approved (own) |
 | GET / PUT | `/api/submissions/{taskKey}` | approved (own) |
 | POST | `/api/submissions/{taskKey}/links`, `/files`, `/submit` | approved (own) |

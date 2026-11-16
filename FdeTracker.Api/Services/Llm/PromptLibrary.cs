@@ -3,7 +3,7 @@ namespace FdeTracker.Api.Services.Llm;
 /// <summary>The stored prompt versions (Prompts/analyze.vN.md). Keeping every version in the repo lets us compare them on the same test cases.</summary>
 public sealed class PromptLibrary
 {
-    public const string DefaultVersion = "v2"; // best overall in the Day 2 comparison (docs/evals/day2-local-comparison.md)
+    public const string DefaultVersion = "v4"; // best overall for the model in use (qwen2.5:3b, 94%) in docs/evals/day2-local-v2-comparison.md; v2 was best on the smaller 1.5b model, so re-check when the model changes
     public static readonly string[] Versions = ["v1", "v2", "v3", "v4"];
 
     readonly Dictionary<string, string> _prompts;

@@ -67,10 +67,12 @@ public sealed class TaskTools(Db db, TaskRepository tasks)
     async Task<ToolResult> List(AppUser user, JsonElement raw)
     {
         var a = new Args(raw, "status", "limit");
-        var status = a.OneOf("status", [.. Statuses, "all"]) ?? "open";
+        // Found by running a real model: with "open" as the default, a task that was already marked done could not be found
+        // again, so "delete the task I just finished" went nowhere. With no status given, every task is listed.
+        var status = a.OneOf("status", [.. Statuses, "all"]) ?? "all";
         var limit = a.Int("limit", 1, 50, 20);
         var list = await db.Read(s => tasks.List(s, user.Id, status, limit));
-        return new ToolResult("ok", $"{list.Count} task(s).", list);
+        return new ToolResult("ok", $"{list.Count} {(status == "all" ? "" : status + " ")}task(s).", list);
     }
 
     async Task<ToolResult> Update(AppUser user, JsonElement raw)

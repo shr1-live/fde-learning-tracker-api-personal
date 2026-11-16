@@ -100,19 +100,18 @@ public sealed class TaskAssistantService(Db db, ILlmClient llm, LlmCallRepositor
     /// <summary>The person's answer to a waiting confirmation. It is marked decided first, so it can never run twice; if the run then fails, the person asks again.</summary>
     public async Task<TaskReplyView> Confirm(AppUser user, Guid id, bool approve)
     {
-        var row = await db.Tx(async s =>
+        var (row, expired) = await db.Tx(async s =>
         {
             var r = await tasks.LockPending(s, id);
             if (r is null || r.UserId != user.Id) throw ApiException.NotFound(); // someone else's confirmation does not exist for you
             if (r.DecidedAt is not null) throw new ApiException(409, "This was already decided");
             await tasks.Decide(s, id);
-            if (r.ExpiresAt < DateTime.UtcNow)
-            {
-                await tasks.LogCall(s, user.Id, r.Tool, r.Arguments, "expired", "The confirmation ran out of time", null);
-                throw new ApiException(410, "This confirmation has expired. Ask again.");
-            }
-            return r;
+            var late = r.ExpiresAt < DateTime.UtcNow;
+            if (late) await tasks.LogCall(s, user.Id, r.Tool, r.Arguments, "expired", "The confirmation ran out of time", null);
+            return (r, late);
         });
+        // Thrown after the transaction has committed, so the "expired" decision and its log line are kept.
+        if (expired) throw new ApiException(410, "This confirmation has expired. Ask again.");
 
         if (!approve)
         {
@@ -123,7 +122,11 @@ public sealed class TaskAssistantService(Db db, ILlmClient llm, LlmCallRepositor
         using var args = JsonDocument.Parse(row.Arguments);
         var clock = Stopwatch.StartNew();
         // The arguments are checked again and the person's ownership is checked again: nothing is trusted just because it was stored.
-        var result = await tools.Execute(user, row.Tool, args.RootElement, confirmed: true);
+        // What the person said yes to is also checked again: if the task was renamed in the meantime, they approved something else.
+        var preview = await tools.Execute(user, row.Tool, args.RootElement, confirmed: false);
+        var result = preview is { Outcome: "needs_confirmation" } && preview.PendingSummary != row.Summary
+            ? new ToolResult("invalid", "The task changed since you were asked, so nothing was deleted. Ask again.")
+            : await tools.Execute(user, row.Tool, args.RootElement, confirmed: true);
         var outcome = result.Outcome == "ok" ? "confirmed" : result.Outcome;
         await db.Tx(async s =>
         {

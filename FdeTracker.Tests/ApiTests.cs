@@ -247,7 +247,7 @@ public sealed class ApiTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(120, (int)r.Body["input_tokens"]!);
         Assert.Equal(80, (int)r.Body["output_tokens"]!);
         Assert.Equal(345, (int)r.Body["latency_ms"]!);
-        Assert.Equal("v2", (string)r.Body["prompt_version"]!);
+        Assert.Equal("v4", (string)r.Body["prompt_version"]!);
         Assert.Equal(new[] { "Docker", "PostgreSQL", "Python" }, r.Body["required_skills"]!.AsArray().Select(x => (string)x!).ToArray());
         Assert.Equal(new[] { "PostgreSQL" }, c["check"]!["missing"]!.AsArray().Select(x => (string)x!).ToArray());
         Assert.Equal(67, (int)c["check"]!["score"]!);
@@ -707,6 +707,48 @@ public sealed class ApiTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(502, (await Ask(D, "hello")).Status);
         Assert.Equal(2, api.Llm.Calls - calls);                               // one retry, then a clean error
         Assert.True(await api.Count($"select count(*) from llm_calls where user_id = '{D.Id}' and prompt_version = 'tasks-v1' and status = 'invalid_output'") >= 1);
+    }
+
+    [Fact]
+    public async Task T39b_a_finished_task_can_still_be_found_so_it_can_be_deleted()
+    {
+        // Regression from a real-model run: list_tasks used to default to open tasks, so a done task was invisible.
+        Script(Tool("create_task", new { title = "Finished chore" }), Say("ok"));
+        await Ask(D, "add a chore");
+        var id = IdOf(await TasksOf(D), "Finished chore");
+        Script(Tool("update_task", new { id, status = "done" }), Say("ok"));
+        await Ask(D, "mark the chore done");
+
+        Script(Tool("list_tasks", new { }), Say("listed"));
+        await Ask(D, "what tasks do I have");
+        Assert.Contains("Finished chore", api.Llm.LastUser);                     // visible without asking for "done" explicitly
+        Script(Tool("list_tasks", new { status = "open" }), Say("listed"));
+        await Ask(D, "what is still open");
+        Assert.DoesNotContain("Finished chore", api.Llm.LastUser);               // the open filter still works
+    }
+
+    [Fact]
+    public async Task T39c_a_task_renamed_after_the_question_is_not_deleted_and_an_expired_question_is_logged()
+    {
+        Script(Tool("create_task", new { title = "Old report" }), Say("ok"));
+        await Ask(D, "add old report");
+        var id = IdOf(await TasksOf(D), "Old report");
+
+        Script(Tool("delete_task", new { id }));
+        var pid = (string)(await Ask(D, "delete the old report")).Body["pending"]!["id"]!;
+        Script(Tool("update_task", new { id, title = "Quarterly accounts" }), Say("renamed"));
+        await Ask(D, "rename it to quarterly accounts");           // the person said yes to something that no longer exists
+        var yes = await api.Call("POST", $"/api/task-assistant/confirm/{pid}", D, new { approve = true });
+        Assert.Equal("invalid", (string)yes.Body["actions"]![0]!["outcome"]!);
+        Assert.Contains((await TasksOf(D)).AsArray(), t => (string)t!["id"]! == id);   // still there
+
+        Script(Tool("delete_task", new { id }));
+        var late = (string)(await Ask(D, "delete it now")).Body["pending"]!["id"]!;
+        await api.Count($"with u as (update pending_actions set expires_at = now() - interval '1 minute' where id = '{late}' returning 1) select count(*) from u");
+        Assert.Equal(410, (await api.Call("POST", $"/api/task-assistant/confirm/{late}", D, new { approve = true })).Status);
+        Assert.Equal(409, (await api.Call("POST", $"/api/task-assistant/confirm/{late}", D, new { approve = true })).Status); // decided, cannot be replayed
+        Assert.Contains((await TasksOf(D)).AsArray(), t => (string)t!["id"]! == id);
+        Assert.Contains("expired", (await api.Call("GET", "/api/task-assistant/log", D)).Body.AsArray().Select(c => (string)c!["outcome"]!));
     }
 
     [Fact]

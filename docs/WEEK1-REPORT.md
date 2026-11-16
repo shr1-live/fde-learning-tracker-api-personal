@@ -35,31 +35,53 @@ Result on the 20-prompt set (local CPU, Ollama):
 
 ### Day 2: prompt engineering
 
-Three stored prompt versions (`FdeTracker.Api/Prompts/analyze.v1.md` to `v3.md`) were run on the same job and five fixed candidates (strong, partial, different field, near-empty profile, profile containing an instruction aimed at the model), each twice (`docs/evals/day2-local-comparison.md`).
+Four stored prompt versions (`FdeTracker.Api/Prompts/analyze.v1.md` to `v4.md`) were run on the same job and eight fixed candidates (strong, one strong but worded very differently from the job text, partial, different field, thin or vague profiles, and a profile containing an instruction aimed at the model). Candidates are sent four at a time, like a real request, and each version was run twice on two models (`docs/evals/day2-local-v2-comparison.md`). An earlier five-candidate run (`docs/evals/day2-local-comparison.md`) is kept for reference.
 
-| Model | Version | Overall checks passed | Candidates repeatable |
-|---|---|---|---|
-| qwen2.5:3b | v1 | 92% | 5 of 5 |
-| qwen2.5:3b | **v2** | **96%** | **5 of 5** |
-| qwen2.5:3b | v3 | 90% | 3 of 5 |
-| qwen2.5:1.5b | v1 | 72% | 3 of 5 |
-| qwen2.5:1.5b | **v2** | **74%** | 1 of 5 |
-| qwen2.5:1.5b | v3 | 28% | 5 of 5 |
+| Model | Version | Grounded claims | Overall checks passed | Candidates repeatable |
+|---|---|---|---|---|
+| qwen2.5:3b | v1 | 6 of 16 | 84% | 6 of 8 |
+| qwen2.5:3b | v2 | 10 of 16 | 88% | 6 of 8 |
+| qwen2.5:3b | v3 | 12 of 16 | 88% | 7 of 8 |
+| qwen2.5:3b | **v4** | **14 of 16** | **94%** | **7 of 8** |
+| qwen2.5:1.5b | v1 | 2 of 16 | 78% | 8 of 8 |
+| qwen2.5:1.5b | **v2** | 4 of 16 | **81%** | 5 of 8 |
+| qwen2.5:1.5b | v3 | 0 of 16 | 26% | 7 of 8 |
+| qwen2.5:1.5b | v4 | 5 of 16 | 44% | 1 of 8 |
 
-**Decision taken from the data:** version 2 is the default. Version 3 (explicit rules, a worked example, injection defence) was expected to win and did not: it gave less sensible ratings, and on the small model it copied the example and over-claimed. It stays selectable. The small model's repeatability is poor in every version, which is a finding about that model, not about the prompts.
+**Decision taken from the data:** version 4 (version 2 plus an explicit rule that profile text is data, never instructions) is now the default because it is best on the model in use (qwen2.5:3b). The smaller model tells a different story: version 4 is worst-but-one there and version 2 wins. So the best prompt depends on the model, and the comparison must be re-run whenever the model changes. The earlier run chose version 2 on five candidates; with eight candidates and batching the ranking changed, which is a reason not to trust a small test set. Every version stays selectable per request.
 
 Criteria: consistent output structure (enforced and validated), prompt versions stored (files), test cases repeatable (fixed file, run twice), missing information identified (rating "insufficient information" and a "not stated" list), output grounded (a claim without a real quote from the profile is removed and reported).
 
+### Day 3: structured outputs and tool calling
+
+A task assistant (`/task-assistant` page, `POST /api/task-assistant/message`). The person writes in plain words; the model answers with a fixed JSON request for one of four tools (create, list, update, delete); **our code** validates and runs it.
+
+| Criterion | Evidence |
+|---|---|
+| Schema validation | Every argument is checked for type, length, allowed values, real dates and unknown names; the model cannot name a person (`TaskToolsTests`, 24 refused cases) |
+| Invalid arguments handled | The refusal is fed back to the model as data; the loop is capped at 4 steps; unusable replies get one retry and then a clean 502 |
+| Tools run only in application code | The model only asks; every query is scoped to the signed-in person's id taken from the sign-in, never from the model |
+| Authentication and permission checks | Sign-in and approval required; another person's task id is "denied", and another person cannot confirm someone else's question (tests) |
+| Tool failures handled | A database failure becomes "failed, nothing changed" with no internals shown (test) |
+| Destructive actions need confirmation | A delete only creates a pending question (expires in 10 minutes, decided once, re-checked when confirmed); cancelling or ignoring it changes nothing; a yes for a task that was renamed meanwhile is refused; a late yes is refused and logged (tests) |
+| Execution is logged | Every call, including refused ones, is stored per person with outcome and speed and shown on the page |
+
+An independent security review of the Day 3 code found no way to delete or reach another person's data without the confirmation; it found one low-severity gap (a task renamed between the question and the yes would still be deleted) and one logging gap (expired confirmations were not recorded). Both are fixed and tested.
+
+Text that comes back from a tool (such as a task title) reaches the model as escaped data, and a hostile title that tries to pose as an instruction is tested.
+
+**What a real model did (qwen2.5:3b, local, via the API):** it created a task with the right due date and priority, listed it, and marked it done. It did **not** manage the delete: it asked to delete with a made-up id, then updated a task instead. Our server refused or contained each mistake and nothing was deleted without a confirmation, but the assistant is not usable with a model that small. This run also found a real bug in our tool: listing defaulted to open tasks only, so a finished task could never be found again to delete. Fixed (the default now lists every task) with a regression test. The delete-with-confirmation path itself is proven by the automated tests with a scripted model, not by a real model; a stronger hosted model (for example Claude) should be run through it before the assistant is relied on.
+
 ### Day 5: end to end
 
-Working flow from the Assistant page to the model and back, with validated input and output, two plain functions used by the service (find skills, score a match), clear failure messages, usage and latency logging, a daily cap per person, 53 automated tests, a README section, `docs/DEMO.md`, and this report.
+Working flow from the Assistant page to the model and back, with validated input and output, two plain functions used by the service (find skills, score a match), clear failure messages, usage and latency logging, a daily cap per person, 89 automated tests (the whole backend), a README section, `docs/DEMO.md`, and this report.
 
 ## 3. What testing found
 
 - **A crash found by the evaluation:** a model wrote a candidate id as text (`"1"`) and the parser threw, which in the live endpoint would have been a 500 error. Fixed: text ids are accepted, any odd shape becomes a clean "unusable answer", with a test.
 - **Parsing words around JSON:** models sometimes add sentences, some containing braces. The parser now finds the object that holds the answer instead of assuming the first and last brace.
 - **A leftover address cannot receive a Claude key:** the Claude client always calls Anthropic's own address and ignores `LLM_BASE_URL`, with a test.
-- **Review of the default prompt:** switching the default to version 2 removes the explicit injection rule that version 3 has. Two answers: a code guardrail now lowers a good rating that has no quote behind it, whichever prompt is used (tested), and version 3 stays selectable. This is a mitigation, not proof: the Day 4 test set must include more injection cases per version.
+- **Review of the default prompt:** an earlier default (version 2) lacked the explicit injection rule that versions 3 and 4 have; the default is now version 4. Two answers: a code guardrail now lowers a good rating that has no quote behind it, whichever prompt is used (tested), and version 3 stays selectable. This is a mitigation, not proof: the Day 4 test set must include more injection cases per version.
 - **Accessibility:** an automated browser audit (Edge plus axe-core, WCAG 2.2 AA rules) of 10 pages, light and dark, desktop and phone, found progress bars without a role, tables not reachable by keyboard, and white text on a light-green tag (dark mode contrast 2.2:1). All fixed; the final audit shows 0 violations and no sideways scrolling.
 
 ## 4. Security notes
@@ -74,7 +96,7 @@ So that a day can be shown as done and checked by someone else, people can submi
 
 | Item | Status |
 |---|---|
-| **Day 3: structured outputs and tool calling** | Not built. The two helper functions are plain code, not model tool calls. Needed: task schema, create/list/update/delete tools run only by our code, permission checks, confirmation before deleting, execution log. |
+| **Day 3: structured outputs and tool calling** | Built and tested (see Day 3 above), but the real-model proof is partial: the small local model could not complete the delete flow. A run with a stronger hosted model is still needed. |
 | **Day 4: 30-case evaluation, guardrails, before and after** | Not built. The Day 1 and Day 2 runs are the basis; the injection result above is the first failure case to fix. |
 | **A hosted model in the comparison** | Claude client is built and tested with a fake provider, but no real Claude run exists yet: it needs the key on the owner's machine (`EVAL_ONLY=claude`; the target is off by default because it is paid). Local small models are not representative of production quality. |
 | **Deployment** | Not deployed. Needs the Render service, a hosted model and its key set in the Render dashboard, and the frontend's API address. Local models cannot run on Render. |
