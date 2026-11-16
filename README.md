@@ -60,7 +60,7 @@ How it protects the result:
 - Anything unexpected from the model becomes a clean "unusable answer" (502), never a crash. Provider errors, timeouts and rate limits become clear messages; the provider's body and the key are never shown.
 - Every call is logged (model, prompt version, tokens, latency, status; no prompt text) and counts toward the daily cap, including failed and cancelled calls.
 
-Prompt versions live in `FdeTracker.Api/Prompts/analyze.v1.md` to `v3.md`; `v3` is the default and can be chosen per request.
+Prompt versions live in `FdeTracker.Api/Prompts/analyze.v1.md` to `v3.md`; `v2` is the default because it scored best in the Day 2 comparison (see `docs/evals/day2-local-comparison.md`); any version can be chosen per request.
 
 ### Assistant settings (environment variables only)
 
