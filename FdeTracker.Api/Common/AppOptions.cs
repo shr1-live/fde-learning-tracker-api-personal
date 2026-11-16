@@ -18,11 +18,12 @@ public sealed class AppOptions
     public string LlmProvider { get; init; } = "openai"; // "openai" = any chat-completions provider, "anthropic" = Claude
     public int LlmDailyCap { get; init; } = 20;
     public int LlmTimeoutSeconds { get; init; } = 30;
+    public int LlmRetryDelayMs { get; init; } = 1000;
 
     static string ProviderOf(string? value)
     {
         var p = (value ?? "openai").ToLowerInvariant();
-        return p is "openai" or "anthropic" ? p : throw new InvalidOperationException("LLM_PROVIDER must be openai or anthropic");
+        return Services.Llm.LlmClientFactory.Providers.Contains(p) ? p : throw new InvalidOperationException($"LLM_PROVIDER must be one of: {string.Join(", ", Services.Llm.LlmClientFactory.Providers)}");
     }
 
     public static AppOptions From(IConfiguration c)
@@ -30,6 +31,10 @@ public sealed class AppOptions
         string Need(string key) => c[key] is { Length: > 0 } v ? v : throw new InvalidOperationException($"Missing required setting {key}");
         string? Opt(string key) => c[key] is { Length: > 0 } v ? v : null;
         int Num(string key, int fallback) => int.TryParse(c[key], out var n) && n > 0 ? n : fallback;
+        var provider = ProviderOf(Opt("LLM_PROVIDER"));
+        // A leftover address from another provider must never receive a Claude key.
+        if (provider == "anthropic" && Opt("LLM_BASE_URL") is not null)
+            throw new InvalidOperationException("LLM_BASE_URL is not used with LLM_PROVIDER=anthropic. Unset it.");
         return new AppOptions
         {
             DatabaseUrl = Need("DATABASE_URL"),
@@ -42,9 +47,10 @@ public sealed class AppOptions
             LlmBaseUrl = Opt("LLM_BASE_URL"),
             LlmApiKey = Opt("LLM_API_KEY"),
             LlmModel = Opt("LLM_MODEL"),
-            LlmProvider = ProviderOf(Opt("LLM_PROVIDER")),
+            LlmProvider = provider,
             LlmDailyCap = Num("LLM_DAILY_CAP", 20),
             LlmTimeoutSeconds = Num("LLM_TIMEOUT_SECONDS", 30),
+            LlmRetryDelayMs = Num("LLM_RETRY_DELAY_MS", 1000),
         };
     }
 }

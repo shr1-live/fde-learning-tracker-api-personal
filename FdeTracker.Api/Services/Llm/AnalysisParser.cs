@@ -17,9 +17,9 @@ public static partial class AnalysisParser
 
     public static (List<CandidateAnalysisView> Candidates, List<string> Warnings) Parse(string raw, IReadOnlyList<CandidateInput> input, List<string> requiredSkills)
     {
-        JsonDocument doc;
-        try { doc = JsonDocument.Parse(StripFences(raw)); }
-        catch (JsonException) { throw new UnusableOutputException("Not valid JSON"); }
+        var text = Fence().Replace(raw.Trim(), "").Trim();
+        // Some models add words around the JSON, so look for the object that holds the answer.
+        var doc = TryParse(text) ?? FindAnswerObject(text) ?? throw new UnusableOutputException("Not valid JSON");
         using var _ = doc;
         var root = doc.RootElement;
         if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("candidates", out var list) || list.ValueKind != JsonValueKind.Array)
@@ -29,37 +29,56 @@ public static partial class AnalysisParser
         var byId = new Dictionary<int, CandidateAnalysisView>();
         foreach (var item in list.EnumerateArray())
         {
-            if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty("id", out var idEl) || !idEl.TryGetInt32(out var id) || id < 1 || id > input.Count) { warnings.Add("An entry with an unknown candidate id was ignored."); continue; }
-            if (byId.ContainsKey(id)) { warnings.Add($"{input[id - 1].Name}: a second analysis for the same candidate was ignored."); continue; }
-            var profile = input[id - 1].Profile;
-            var removed = 0;
-            var matched = new List<MatchedSkillView>();
-            foreach (var m in Array(item, "matched_skills"))
+            if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty("id", out var idEl) || !idEl.TryGetInt32(out var id) || id < 1 || id > input.Count)
             {
-                var skill = Text(m, "skill", 80);
-                var evidence = Text(m, "evidence", 300);
-                if (skill.Length == 0) continue;
-                if (IsQuoted(evidence, profile) && Supports(skill, evidence)) matched.Add(new MatchedSkillView { Skill = skill, Evidence = evidence });
-                else removed++;
+                warnings.Add("An entry with an unknown candidate id was ignored.");
+                continue;
             }
-            if (removed > 0) warnings.Add($"{input[id - 1].Name}: {removed} claim(s) removed because the quoted evidence is not in the profile.");
-            var fit = Text(item, "fit", 40);
-            var (found, missing, score) = SkillTools.ScoreMatch(requiredSkills, SkillTools.ExtractSkills(profile));
-            byId[id] = new CandidateAnalysisView
+            if (byId.ContainsKey(id))
             {
-                Id = id, Name = input[id - 1].Name,
-                Summary = Text(item, "summary", 600),
-                MatchedSkills = matched,
-                Gaps = Strings(item, "gaps"),
-                NotStated = Strings(item, "not_stated"),
-                Fit = Fits.Contains(fit) ? fit : "insufficient_information",
-                Check = new SkillCheckView { Matched = found, Missing = missing, Score = score },
-            };
+                warnings.Add($"{input[id - 1].Name}: a second analysis for the same candidate was ignored.");
+                continue;
+            }
+            byId[id] = ReadCandidate(item, id, input[id - 1], requiredSkills, warnings);
         }
         if (byId.Count == 0) throw new UnusableOutputException("No usable candidate in the answer");
         for (var i = 1; i <= input.Count; i++)
             if (!byId.ContainsKey(i)) warnings.Add($"{input[i - 1].Name}: the model returned no analysis for this candidate.");
         return (byId.OrderBy(kv => kv.Key).Select(kv => kv.Value).ToList(), warnings);
+    }
+
+    /// <summary>One candidate's analysis, with every quoted claim checked against that candidate's own profile.</summary>
+    static CandidateAnalysisView ReadCandidate(JsonElement item, int id, CandidateInput person, List<string> requiredSkills, List<string> warnings)
+    {
+        var (matched, removed) = CheckClaims(item, person.Profile);
+        if (removed > 0) warnings.Add($"{person.Name}: {removed} claim(s) removed because the quoted evidence is not in the profile.");
+        var fit = Text(item, "fit", 40);
+        var (found, missing, score) = SkillTools.ScoreMatch(requiredSkills, SkillTools.ExtractSkills(person.Profile));
+        return new CandidateAnalysisView
+        {
+            Id = id, Name = person.Name,
+            Summary = Text(item, "summary", 600),
+            MatchedSkills = matched,
+            Gaps = Strings(item, "gaps"),
+            NotStated = Strings(item, "not_stated"),
+            Fit = Fits.Contains(fit) ? fit : "insufficient_information",
+            Check = new SkillCheckView { Matched = found, Missing = missing, Score = score },
+        };
+    }
+
+    static (List<MatchedSkillView> Kept, int Removed) CheckClaims(JsonElement item, string profile)
+    {
+        var kept = new List<MatchedSkillView>();
+        var removed = 0;
+        foreach (var m in Array(item, "matched_skills"))
+        {
+            var skill = Text(m, "skill", 80);
+            var evidence = Text(m, "evidence", 300);
+            if (skill.Length == 0) continue;
+            if (IsQuoted(evidence, profile) && Supports(skill, evidence)) kept.Add(new MatchedSkillView { Skill = skill, Evidence = evidence });
+            else removed++;
+        }
+        return (kept, removed);
     }
 
     /// <summary>The quote must be at least 8 characters and appear in the profile (ignoring case and spacing). The profile reaches the model with &lt; and &gt; escaped, so that spelling is accepted too.</summary>
@@ -75,13 +94,43 @@ public static partial class AnalysisParser
         !SkillTools.IsKnownSkill(skill) || SkillTools.ExtractSkills(evidence).Contains(skill, StringComparer.OrdinalIgnoreCase);
 
     static string Normalize(string s) => Spaces().Replace(s, " ").Trim().ToLowerInvariant();
-    /// <summary>Drops code fences, then keeps from the first { to the last }: some models add a sentence before or after the JSON.</summary>
-    static string StripFences(string s)
+    static JsonDocument? TryParse(string s)
     {
-        var t = Fence().Replace(s.Trim(), "").Trim();
-        var start = t.IndexOf('{');
-        var end = t.LastIndexOf('}');
-        return start >= 0 && end > start ? t[start..(end + 1)] : t;
+        try { return JsonDocument.Parse(s); }
+        catch (JsonException) { return null; }
+    }
+
+    /// <summary>
+    /// Walks the text for balanced { ... } blocks (ignoring braces inside strings) and returns the first one that
+    /// parses and has a "candidates" list. Stray braces in the model's own words are skipped.
+    /// </summary>
+    static JsonDocument? FindAnswerObject(string t)
+    {
+        for (var start = t.IndexOf('{'); start >= 0; start = t.IndexOf('{', start + 1))
+        {
+            int depth = 0; bool inString = false, escaped = false;
+            for (var i = start; i < t.Length; i++)
+            {
+                var ch = t[i];
+                if (inString)
+                {
+                    if (escaped) escaped = false;
+                    else if (ch == '\\') escaped = true;
+                    else if (ch == '"') inString = false;
+                    continue;
+                }
+                if (ch == '"') inString = true;
+                else if (ch == '{') depth++;
+                else if (ch == '}' && --depth == 0)
+                {
+                    var doc = TryParse(t[start..(i + 1)]);
+                    if (doc is not null && doc.RootElement.ValueKind == JsonValueKind.Object && doc.RootElement.TryGetProperty("candidates", out _)) return doc;
+                    doc?.Dispose();
+                    break;
+                }
+            }
+        }
+        return null;
     }
 
     static IEnumerable<JsonElement> Array(JsonElement o, string name) =>

@@ -26,7 +26,7 @@ public sealed class LlmClientTests
     static HttpResponseMessage Json(HttpStatusCode code, string json) => new(code) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
 
     static AppOptions Opts(string provider = "anthropic", string? baseUrl = null, int timeout = 5) =>
-        new() { LlmProvider = provider, LlmApiKey = "test-key", LlmModel = "test-model", LlmBaseUrl = baseUrl, LlmTimeoutSeconds = timeout };
+        new() { LlmProvider = provider, LlmApiKey = "test-key", LlmModel = "test-model", LlmBaseUrl = baseUrl, LlmTimeoutSeconds = timeout, LlmRetryDelayMs = 1 };
 
     const string ClaudeAnswer = """{"model":"claude-test","content":[{"type":"text","text":"{\"ok\":true}"}],"usage":{"input_tokens":11,"output_tokens":7}}""";
 
@@ -135,5 +135,41 @@ public sealed class LlmClientTests
             var (c, _) = AnalysisParser.Parse(wrapped, people, ["Python"]);
             Assert.Single(c[0].MatchedSkills);
         }
+    }
+
+    [Fact]
+    public async Task A_claude_answer_cut_off_at_the_length_limit_is_an_error_not_a_success()
+    {
+        var stub = new Stub((_, _) => Task.FromResult(Json(HttpStatusCode.OK, """{"content":[{"type":"text","text":"{\"half"}],"stop_reason":"max_tokens","usage":{"input_tokens":1,"output_tokens":1500}}""")));
+        var client = LlmClientFactory.Create("anthropic", new HttpClient(stub), Opts());
+        var e = await Assert.ThrowsAsync<LlmException>(() => client.CompleteAsync("s", "u", CancellationToken.None));
+        Assert.Contains("cut off", e.Message);
+    }
+
+    [Fact]
+    public async Task An_empty_claude_answer_is_an_error()
+    {
+        var stub = new Stub((_, _) => Task.FromResult(Json(HttpStatusCode.OK, """{"content":[],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":0}}""")));
+        var client = LlmClientFactory.Create("anthropic", new HttpClient(stub), Opts());
+        await Assert.ThrowsAsync<LlmException>(() => client.CompleteAsync("s", "u", CancellationToken.None));
+    }
+
+    [Fact]
+    public void A_leftover_base_address_cannot_receive_a_claude_key()
+    {
+        IConfiguration Cfg(string provider, string? baseUrl) => new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        { ["DATABASE_URL"] = "x", ["SUPABASE_URL"] = "https://x.supabase.co", ["LLM_PROVIDER"] = provider, ["LLM_BASE_URL"] = baseUrl }).Build();
+        Assert.Throws<InvalidOperationException>(() => AppOptions.From(Cfg("anthropic", "https://generativelanguage.googleapis.com")));
+        Assert.Equal("anthropic", AppOptions.From(Cfg("anthropic", null)).LlmProvider);
+        Assert.Equal("https://example/v1", AppOptions.From(Cfg("openai", "https://example/v1")).LlmBaseUrl);
+    }
+
+    [Fact]
+    public void The_parser_survives_braces_in_the_surrounding_words()
+    {
+        var people = new List<CandidateInput> { new() { Name = "Asha", Profile = "Built REST APIs in Python for three years and used Docker." } };
+        const string json = """{"candidates":[{"id":1,"summary":"ok","fit":"strong","matched_skills":[{"skill":"Python","evidence":"Built REST APIs in Python"}],"gaps":[],"not_stated":[]}]}""";
+        var (c, _) = AnalysisParser.Parse("Here is the {analysis}: " + json + " (see {above})", people, ["Python"]);
+        Assert.Single(c[0].MatchedSkills);
     }
 }

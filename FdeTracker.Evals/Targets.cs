@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using FdeTracker.Api.Services.Llm;
 
 namespace FdeTracker.Evals;
 
@@ -34,14 +35,21 @@ public static class Targets
         var run = new List<ResolvedTarget>();
         foreach (var t in all.Where(t => only is null || only.Contains(t.Name, StringComparer.OrdinalIgnoreCase)))
         {
-            var local = t.BaseUrl.Contains("127.0.0.1") || t.BaseUrl.Contains("localhost");
+            var provider = (t.Provider ?? "openai").ToLowerInvariant();
+            if (!LlmClientFactory.Providers.Contains(provider))
+            {
+                Console.WriteLine($"Skipping {t.Name}: unknown provider '{t.Provider}'. Use one of: {string.Join(", ", LlmClientFactory.Providers)}.");
+                continue;
+            }
+            // Only a local chat-completions server (for example Ollama) may run without a key. Claude always needs one.
+            var local = provider == "openai" && (t.BaseUrl.Contains("127.0.0.1") || t.BaseUrl.Contains("localhost"));
             var key = t.ApiKeyEnv is { Length: > 0 } ? Environment.GetEnvironmentVariable(t.ApiKeyEnv) : null;
             if (string.IsNullOrWhiteSpace(key) && !local)
             {
                 Console.WriteLine($"Skipping {t.Name}: set the environment variable {t.ApiKeyEnv ?? "(api_key_env missing)"} to include it.");
                 continue;
             }
-            run.Add(new ResolvedTarget(t.Name, t.BaseUrl, t.Model, string.IsNullOrWhiteSpace(key) ? "local" : key, t.Provider.ToLowerInvariant()));
+            run.Add(new ResolvedTarget(t.Name, t.BaseUrl, t.Model, string.IsNullOrWhiteSpace(key) ? "local" : key, provider));
         }
         return run;
     }

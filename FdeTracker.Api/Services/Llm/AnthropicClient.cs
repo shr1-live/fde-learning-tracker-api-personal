@@ -41,9 +41,10 @@ public sealed class AnthropicClient(HttpClient http, AppOptions options) : HttpL
             var text = new StringBuilder();
             foreach (var block in root.GetProperty("content").EnumerateArray())
                 if (block.TryGetProperty("type", out var t) && t.GetString() == "text" && block.TryGetProperty("text", out var tx)) text.Append(tx.GetString());
-            int Tokens(string name) => root.TryGetProperty("usage", out var u) && u.TryGetProperty(name, out var n) && n.TryGetInt32(out var v) ? v : 0;
-            var model = root.TryGetProperty("model", out var m) && m.GetString() is { Length: > 0 } s ? s : Options.LlmModel!;
-            return new LlmResult(text.ToString(), Tokens("input_tokens"), Tokens("output_tokens"), latencyMs, model);
+            if (root.TryGetProperty("stop_reason", out var stop) && stop.GetString() == "max_tokens")
+                throw new LlmException("provider_error", "The answer was cut off at the length limit");
+            if (text.Length == 0) throw BadFormat(); // empty or refused: nothing usable
+            return new LlmResult(text.ToString(), Usage(root, "input_tokens"), Usage(root, "output_tokens"), latencyMs, ModelOf(root));
         }
         catch (Exception e) when (e is JsonException or KeyNotFoundException or InvalidOperationException) { throw BadFormat(); }
     }

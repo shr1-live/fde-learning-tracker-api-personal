@@ -65,8 +65,16 @@ public abstract class HttpLlmClient(HttpClient http, AppOptions options) : ILlmC
         }
     }
 
-    /// <summary>Seconds to wait before the next try. Overridable so tests do not sleep.</summary>
-    protected virtual TimeSpan RetryDelay(int attempt) => TimeSpan.FromSeconds(attempt);
+    /// <summary>Wait before the next try: LLM_RETRY_DELAY_MS times the attempt number (default 1000).</summary>
+    protected virtual TimeSpan RetryDelay(int attempt) => TimeSpan.FromMilliseconds(options.LlmRetryDelayMs * attempt);
+
+    /// <summary>Token count from the "usage" object, or 0 when the provider does not report it.</summary>
+    protected static int Usage(JsonElement root, string name) =>
+        root.TryGetProperty("usage", out var u) && u.TryGetProperty(name, out var t) && t.TryGetInt32(out var n) ? n : 0;
+
+    /// <summary>The model name the provider reports, falling back to the configured one.</summary>
+    protected string ModelOf(JsonElement root) =>
+        root.TryGetProperty("model", out var m) && m.GetString() is { Length: > 0 } s ? s : Options.LlmModel!;
 
     protected static LlmException BadFormat() => new("provider_error", "The provider's answer was not in the expected format");
 }
@@ -98,9 +106,7 @@ public sealed class OpenAiCompatibleClient(HttpClient http, AppOptions options) 
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
             var content = root.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "";
-            int Tokens(string name) => root.TryGetProperty("usage", out var u) && u.TryGetProperty(name, out var t) && t.TryGetInt32(out var n) ? n : 0;
-            var model = root.TryGetProperty("model", out var m) && m.GetString() is { Length: > 0 } s ? s : Options.LlmModel!;
-            return new LlmResult(content, Tokens("prompt_tokens"), Tokens("completion_tokens"), latencyMs, model);
+            return new LlmResult(content, Usage(root, "prompt_tokens"), Usage(root, "completion_tokens"), latencyMs, ModelOf(root));
         }
         catch (Exception e) when (e is JsonException or KeyNotFoundException or InvalidOperationException or IndexOutOfRangeException) { throw BadFormat(); }
     }
