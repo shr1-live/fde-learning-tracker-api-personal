@@ -1,16 +1,13 @@
 services:
   - type: web
     name: fde-tracker-api
-    runtime: node
+    runtime: docker
+    dockerfilePath: ./Dockerfile
     plan: free
     region: oregon
-    buildCommand: npm ci --omit=dev
-    startCommand: npm start
     healthCheckPath: /health
     autoDeploy: true
     envVars:
-      - key: NODE_VERSION
-        value: "22"
       - key: ALLOWED_DOMAIN
         value: fiftyfivetech.io
       - key: ADMIN_EMAIL
