@@ -11,6 +11,7 @@ public sealed class PromptCase
     [JsonPropertyName("kind")] public string Kind { get; set; } = "";
     [JsonPropertyName("prompt")] public string Prompt { get; set; } = "";
     [JsonPropertyName("expect_any")] public string[]? ExpectAny { get; set; }
+    [JsonPropertyName("expect_regex")] public string? ExpectRegex { get; set; }
     [JsonPropertyName("max_words")] public int? MaxWords { get; set; }
     [JsonPropertyName("min_question_marks")] public int? MinQuestionMarks { get; set; }
 }
@@ -44,10 +45,11 @@ public static class Day1Runner
                     results.Add(new CaseResult(model, c.Id, c.Kind, ok, answer, r.LatencyMs, r.InputTokens, r.OutputTokens, null));
                     Console.WriteLine($"{(ok ? "pass" : "FAIL")}  {r.LatencyMs} ms");
                 }
-                catch (LlmException e)
+                catch (Exception e) when (e is LlmException or HttpRequestException or TaskCanceledException)
                 {
-                    results.Add(new CaseResult(model, c.Id, c.Kind, false, "", 0, 0, 0, $"{e.Kind}: {e.Message}"));
-                    Console.WriteLine($"ERROR {e.Kind}");
+                    var kind = e is LlmException le ? le.Kind : e.GetType().Name;
+                    results.Add(new CaseResult(model, c.Id, c.Kind, false, "", 0, 0, 0, $"{kind}: {e.Message}")); // keep going: one failure must not lose the rest
+                    Console.WriteLine($"ERROR {kind}");
                 }
             }
         }
@@ -71,6 +73,7 @@ public static class Day1Runner
     {
         var lower = answer.ToLowerInvariant();
         if (c.ExpectAny is { Length: > 0 } && !c.ExpectAny.Any(e => lower.Contains(e.ToLowerInvariant()))) return false;
+        if (c.ExpectRegex is { } rx && !System.Text.RegularExpressions.Regex.IsMatch(answer, rx, System.Text.RegularExpressions.RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1))) return false;
         if (c.MaxWords is { } max && answer.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length > max) return false;
         if (c.MinQuestionMarks is { } q && answer.Count(ch => ch == '?') < q) return false;
         return true;

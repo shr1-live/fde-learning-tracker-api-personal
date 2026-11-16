@@ -49,7 +49,10 @@ public static class Report
             foreach (var f in failed) sb.AppendLine($"- **{f.Model} / {f.CaseId}**: {(f.Error ?? Trim(f.Answer)).Replace("\n", " ")}");
         }
 
-        var best = stats.OrderByDescending(s => s.Passed).ThenBy(s => s.Median).First();
+        if (stats.Count == 0) return sb.AppendLine().AppendLine("No models were run.").ToString();
+        // A model that errored is ruled out first, as the text below says; only if every model errored do we compare them all.
+        var eligible = stats.Where(s => s.Errors == 0).ToList();
+        var best = (eligible.Count > 0 ? eligible : stats).OrderByDescending(s => s.Passed).ThenBy(s => s.Median).First();
         var others = stats.Where(s => s.Model != best.Model).ToList();
         sb.AppendLine().AppendLine("## Recommendation").AppendLine();
         sb.Append($"Use **{best.Model}**. It passed {best.Passed} of {best.Total} prompts with a median latency of {best.Median / 1000:0.0} s");

@@ -1,13 +1,13 @@
 # Day 1: model comparison on a fixed prompt set
 
-Run on 2026-11-16 08:08 UTC. Same 10 prompts, same system prompt, temperature 0, for every model. Prompts: `evals/day1-prompts.json`. Raw results: `docs/evals/day1-results.json`.
+Run on 2026-11-16 08:15 UTC. Same 10 prompts, same system prompt, temperature 0, for every model. Prompts: `evals/day1-prompts.json`. Raw results: `docs/evals/day1-results.json`.
 
 ## Summary
 
 | Model | Passed | Errors | Median latency | Slowest | Input tokens | Output tokens |
 |---|---|---|---|---|---|---|
-| qwen2.5:3b | 9/10 | 0 | 3.1 s | 10.4 s | 724 | 164 |
-| qwen2.5:1.5b | 8/10 | 0 | 1.6 s | 5.5 s | 724 | 189 |
+| qwen2.5:3b | 9/10 | 0 | 3.6 s | 9.2 s | 724 | 164 |
+| qwen2.5:1.5b | 8/10 | 0 | 2.0 s | 5.1 s | 724 | 189 |
 
 ## Per prompt (pass / fail)
 
@@ -32,7 +32,7 @@ Run on 2026-11-16 08:08 UTC. Same 10 prompts, same system prompt, temperature 0,
 
 ## Recommendation
 
-Use **qwen2.5:3b**. It passed 9 of 10 prompts with a median latency of 3.1 s, against qwen2.5:1.5b at 8 of 10 and 1.6 s.
+Use **qwen2.5:3b**. It passed 9 of 10 prompts with a median latency of 3.6 s, against qwen2.5:1.5b at 8 of 10 and 2.0 s.
 
 Reasons, in order: (1) answer quality on this set, because a wrong answer costs more than a slow one; (2) speed, as the tiebreak; (3) reliability, since a model with errors or timeouts is ruled out first. Token counts show the cost side: a hosted model would be billed on the input and output tokens above.
 
