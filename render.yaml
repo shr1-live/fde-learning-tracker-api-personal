@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: fde-tracker-api
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: ALLOWED_DOMAIN
+        value: fiftyfivetech.io
+      - key: ADMIN_EMAIL
+        value: shivanshu.rai@fiftyfivetech.io
+      - key: FREE_SEATS
+        value: "3"
+      # Set these in the Render dashboard (sync: false keeps them out of git):
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
