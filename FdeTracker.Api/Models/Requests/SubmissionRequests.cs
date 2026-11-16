@@ -7,10 +7,15 @@ public static class SubmissionPatterns
     public const string TaskKey = "^[a-z0-9-]{3,60}\\z";
 }
 
-public sealed class SaveNoteRequest
+/// <summary>What the learner writes about their work: what they did, what they learned, and a 1 to 5 self-rating (the programme sheet's columns).</summary>
+public sealed class SaveDetailsRequest
 {
     string? _note;
-    [StringLength(2000)] public string? Note { get => _note; set => _note = string.IsNullOrWhiteSpace(value) ? null : value.Trim(); }
+    string? _learned;
+    [StringLength(2000)] public string? Note { get => _note; set => _note = Clean(value); }
+    [StringLength(2000)] public string? Learned { get => _learned; set => _learned = Clean(value); }
+    [Range(1, 5)] public int? Rating { get; set; }
+    static string? Clean(string? v) => string.IsNullOrWhiteSpace(v) ? null : v.Trim();
 }
 
 public sealed class AddLinkRequest

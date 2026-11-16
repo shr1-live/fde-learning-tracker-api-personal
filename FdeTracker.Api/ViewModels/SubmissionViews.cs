@@ -35,6 +35,8 @@ public sealed class SubmissionView
     public string TaskKey { get; init; } = "";
     public string Status { get; init; } = "";
     public string? Note { get; init; }
+    public string? Learned { get; init; }
+    public int? Rating { get; init; }
     public string Author { get; init; } = "";
     public DateTime? SubmittedAt { get; init; }
     public DateTime? ReviewedAt { get; init; }

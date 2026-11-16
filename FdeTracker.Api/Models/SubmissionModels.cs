@@ -6,6 +6,8 @@ public sealed class SubmissionRow
     public Guid UserId { get; set; }
     public string TaskKey { get; set; } = "";
     public string? Note { get; set; }
+    public string? Learned { get; set; }
+    public int? Rating { get; set; }
     public string Status { get; set; } = "draft";
     public DateTime? SubmittedAt { get; set; }
     public DateTime? ReviewedAt { get; set; }

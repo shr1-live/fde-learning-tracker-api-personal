@@ -20,14 +20,15 @@ public sealed class SubmissionsController(SubmissionService submissions) : ApiCo
     [HttpGet("{taskKey}")]
     public async Task<IActionResult> Get([RegularExpression(Key)] string taskKey) => Ok(await submissions.Get(CurrentUser.Id, taskKey));
 
-    [HttpPut("{taskKey}")]
-    public async Task<IActionResult> SaveNote([RegularExpression(Key)] string taskKey, SaveNoteRequest body) => Ok(await submissions.SaveNote(CurrentUser, taskKey, body.Note));
+    // Reviewers review; they do not submit. Every route that changes a submission is for learners (members) and admins.
+    [HttpPut("{taskKey}"), RequireRole("member", "admin")]
+    public async Task<IActionResult> SaveDetails([RegularExpression(Key)] string taskKey, SaveDetailsRequest body) => Ok(await submissions.SaveDetails(CurrentUser, taskKey, body.Note, body.Learned, body.Rating));
 
-    [HttpPost("{taskKey}/links")]
+    [HttpPost("{taskKey}/links"), RequireRole("member", "admin")]
     public async Task<IActionResult> AddLink([RegularExpression(Key)] string taskKey, AddLinkRequest body) => Ok(await submissions.AddLink(CurrentUser, taskKey, body.Label, body.Url));
 
     /// <summary>One file per request, up to 2 MB. The size limit for this route is raised in SecurityMiddleware; all other routes stay at 64 KB.</summary>
-    [HttpPost("{taskKey}/files"), RequestFormLimits(MultipartBodyLengthLimit = 2_800_000)]
+    [HttpPost("{taskKey}/files"), RequireRole("member", "admin"), RequestFormLimits(MultipartBodyLengthLimit = 2_800_000)]
     public async Task<IActionResult> AddFile([RegularExpression(Key)] string taskKey, [FromForm] IFormFile file, [FromForm, StringLength(120)] string? label)
     {
         if (file.Length > SubmissionService.MaxFileBytes) throw new ApiException(413, "Files can be up to 2 MB");
@@ -37,10 +38,10 @@ public sealed class SubmissionsController(SubmissionService submissions) : ApiCo
         return Ok(await submissions.AddFile(CurrentUser, taskKey, label, file.FileName, buffer.ToArray()));
     }
 
-    [HttpDelete("{taskKey}/items/{itemId:guid}")]
+    [HttpDelete("{taskKey}/items/{itemId:guid}"), RequireRole("member", "admin")]
     public async Task<IActionResult> DeleteItem([RegularExpression(Key)] string taskKey, Guid itemId) => Ok(await submissions.DeleteItem(CurrentUser, taskKey, itemId));
 
-    [HttpPost("{taskKey}/submit")]
+    [HttpPost("{taskKey}/submit"), RequireRole("member", "admin")]
     public async Task<IActionResult> Submit([RegularExpression(Key)] string taskKey) => Ok(await submissions.Submit(CurrentUser, taskKey));
 
     /// <summary>Owner, reviewers and admins only. Always served with the type we detected, never as a web page.</summary>

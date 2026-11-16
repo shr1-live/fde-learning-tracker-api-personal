@@ -28,7 +28,8 @@ public sealed class SubmissionRepository
     public Task<SubmissionRow> Create(Session s, Guid userId, string taskKey) =>
         s.First<SubmissionRow>("insert into submissions (user_id, task_key) values (@userId, @taskKey) returning *", new { userId, taskKey })!;
 
-    public Task SetNote(Session s, Guid id, string? note) => s.Exec("update submissions set note = @note, updated_at = now() where id = @id", new { id, note });
+    public Task SetDetails(Session s, Guid id, string? note, string? learned, int? rating) =>
+        s.Exec("update submissions set note = @note, learned = @learned, rating = @rating, updated_at = now() where id = @id", new { id, note, learned, rating });
 
     public Task SetStatus(Session s, Guid id, string status) =>
         s.Exec(

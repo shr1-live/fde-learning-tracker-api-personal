@@ -15,7 +15,7 @@ static class SubmissionAssembler
         var reviews = await repo.Reviews(s, row.Id);
         return new SubmissionView
         {
-            Id = row.Id, TaskKey = row.TaskKey, Status = row.Status, Note = row.Note, Author = await repo.AuthorName(s, row.UserId),
+            Id = row.Id, TaskKey = row.TaskKey, Status = row.Status, Note = row.Note, Learned = row.Learned, Rating = row.Rating, Author = await repo.AuthorName(s, row.UserId),
             SubmittedAt = row.SubmittedAt, ReviewedAt = row.ReviewedAt, Editable = row.IsEditable,
             Items = items.Select(SubmissionItemView.From).ToList(), Reviews = reviews,
         };
@@ -38,11 +38,11 @@ public sealed class SubmissionService(Db db, SubmissionRepository repo, AuditRep
         return await SubmissionAssembler.Build(s, repo, row);
     });
 
-    public Task<SubmissionView> SaveNote(AppUser user, string taskKey, string? note) => db.Tx(async s =>
+    public Task<SubmissionView> SaveDetails(AppUser user, string taskKey, string? note, string? learned, int? rating) => db.Tx(async s =>
     {
         var row = await EditableOrCreate(s, user.Id, taskKey);
-        await repo.SetNote(s, row.Id, note);
-        await audit.Record(s, user.Id, "submission.note", row.Id.ToString());
+        await repo.SetDetails(s, row.Id, note, learned, rating);
+        await audit.Record(s, user.Id, "submission.details", row.Id.ToString());
         return await SubmissionAssembler.Build(s, repo, (await repo.ById(s, row.Id))!);
     });
 
@@ -88,6 +88,8 @@ public sealed class SubmissionService(Db db, SubmissionRepository repo, AuditRep
     {
         var row = await EditableOrCreate(s, user.Id, taskKey, createIfMissing: false);
         if (await repo.ItemCount(s, row.Id) == 0) throw ApiException.BadRequest("Add at least one proof (a link or a file) before submitting");
+        if (string.IsNullOrWhiteSpace(row.Learned)) throw ApiException.BadRequest("Write what you learned before submitting");
+        if (row.Rating is null) throw ApiException.BadRequest("Rate yourself from 1 to 5 before submitting");
         await repo.SetStatus(s, row.Id, "submitted");
         await audit.Record(s, user.Id, "submission.submit", row.Id.ToString());
         return await SubmissionAssembler.Build(s, repo, (await repo.ById(s, row.Id))!);

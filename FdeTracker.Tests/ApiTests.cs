@@ -360,7 +360,7 @@ public sealed class ApiTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(200, (await api.Call("POST", $"/api/admin/users/{F.Id}/access", Admin, new { status = "approved" })).Status);
         Assert.Equal(404, (await api.Call("GET", Key("week1-day1"), F)).Status); // nothing yet
 
-        var draft = await api.Call("PUT", Key("week1-day1"), F, new { note = "Built the endpoint and compared two models." });
+        var draft = await api.Call("PUT", Key("week1-day1"), F, new { note = "Built the endpoint and compared two models." }); // no "learned" or rating yet
         Assert.Equal(200, draft.Status);
         Assert.Equal("draft", (string)draft.Body["status"]!);
         Assert.True((bool)draft.Body["editable"]!);
@@ -375,9 +375,18 @@ public sealed class ApiTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.True((bool)shot.Body["items"]![1]!["previewable"]!);
         Assert.Equal("image/png", (string)shot.Body["items"]![1]!["content_type"]!);
 
+        Assert.Equal(400, (await api.Call("POST", Key("week1-day1") + "/submit", F)).Status); // proof is there, but "what I learned" and the rating are missing
+        Assert.Equal(400, (await api.Call("PUT", Key("week1-day1"), F, new { note = "n", learned = "x", rating = 6 })).Status); // rating is 1 to 5
+        var details = await api.Call("PUT", Key("week1-day1"), F, new { note = "Built the endpoint and compared two models.", learned = "Tokens are what models bill by; the bigger model was better but slower.", rating = 4 });
+        Assert.Equal(200, details.Status);
+        Assert.Equal(4, (int)details.Body["rating"]!);
+        Assert.Equal(200, (await api.Call("PUT", Key("week1-day1"), F, new { note = "n", learned = "l" })).Status); // saved without a rating...
+        Assert.Equal(400, (await api.Call("POST", Key("week1-day1") + "/submit", F)).Status); // ...so it cannot be submitted
+        await api.Call("PUT", Key("week1-day1"), F, new { note = "Built the endpoint and compared two models.", learned = "Tokens are what models bill by; the bigger model was better but slower.", rating = 4 });
         var sent = await api.Call("POST", Key("week1-day1") + "/submit", F);
         Assert.Equal(200, sent.Status);
         Assert.Equal("submitted", (string)sent.Body["status"]!);
+        Assert.Equal("Tokens are what models bill by; the bigger model was better but slower.", (string)sent.Body["learned"]!);
         Assert.False((bool)sent.Body["editable"]!);
         Assert.NotNull(sent.Body["submitted_at"]);
 
@@ -487,7 +496,7 @@ public sealed class ApiTests(ApiFixture api) : IClassFixture<ApiFixture>
         var mine = await api.Call("GET", Key("week1-day1"), F);
         Assert.True((bool)mine.Body["editable"]!);
         Assert.Equal("Add the token counts.", (string)mine.Body["reviews"]![0]!["comment"]!);
-        var fixedNote = await api.Call("PUT", Key("week1-day1"), F, new { note = "Added the token counts." });
+        var fixedNote = await api.Call("PUT", Key("week1-day1"), F, new { note = "Added the token counts.", learned = "Always record tokens next to speed.", rating = 4 });
         Assert.Equal(200, fixedNote.Status);
         Assert.Equal("submitted", (string)(await api.Call("POST", Key("week1-day1") + "/submit", F)).Body["status"]!);
 
@@ -503,15 +512,20 @@ public sealed class ApiTests(ApiFixture api) : IClassFixture<ApiFixture>
     }
 
     [Fact]
-    public async Task T29_reviewers_cannot_approve_their_own_submission_but_an_admin_can_review_it()
+    public async Task T29_reviewers_review_but_do_not_submit_while_an_admin_can_do_both()
     {
-        await api.Call("PUT", Key("week1-day5"), C, new { note = "My own work." });
-        await api.Call("POST", Key("week1-day5") + "/links", C, new { label = "Demo", url = "https://example.com/demo" });
-        var sent = await api.Call("POST", Key("week1-day5") + "/submit", C);
+        // A reviewer cannot change submissions at all: every write route says no.
+        Assert.Equal(403, (await api.Call("PUT", Key("week1-day5"), C, new { note = "x", learned = "x", rating = 3 })).Status);
+        Assert.Equal(403, (await api.Call("POST", Key("week1-day5") + "/links", C, new { label = "Demo", url = "https://example.com/demo" })).Status);
+        Assert.Equal(403, (await api.Upload(Key("week1-day5") + "/files", C, "a.png", PngBytes, "x")).Status);
+        Assert.Equal(403, (await api.Call("POST", Key("week1-day5") + "/submit", C)).Status);
+        Assert.Equal(404, (await api.Call("GET", Key("week1-day5"), C)).Status); // and has nothing of their own
+        // The admin also takes part, so they can submit, and an admin may decide on their own work.
+        await api.Call("PUT", Key("week1-day5"), Admin, new { note = "Owner's own work.", learned = "How the pieces fit.", rating = 3 });
+        await api.Call("POST", Key("week1-day5") + "/links", Admin, new { label = "Demo", url = "https://example.com/demo" });
+        var sent = await api.Call("POST", Key("week1-day5") + "/submit", Admin);
         Assert.Equal("submitted", (string)sent.Body["status"]!);
-        string id = (string)sent.Body["id"]!;
-        Assert.Equal(403, (await api.Call("POST", $"/api/review/submissions/{id}", C, new { decision = "approve" })).Status);
-        Assert.Equal(200, (await api.Call("POST", $"/api/review/submissions/{id}", Admin, new { decision = "approve" })).Status);
+        Assert.Equal(200, (await api.Call("POST", $"/api/review/submissions/{(string)sent.Body["id"]!}", Admin, new { decision = "approve" })).Status);
     }
 
     [Fact]
