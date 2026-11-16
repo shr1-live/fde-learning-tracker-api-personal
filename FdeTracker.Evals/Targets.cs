@@ -22,7 +22,13 @@ public static class Targets
     /// </summary>
     public static List<ResolvedTarget> Load(string path, string[]? only)
     {
-        var all = JsonSerializer.Deserialize<List<Target>>(File.ReadAllText(path)) ?? [];
+        List<Target> all;
+        try { all = JsonSerializer.Deserialize<List<Target>>(File.ReadAllText(path)) ?? []; }
+        catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException)
+        {
+            Console.Error.WriteLine($"Could not read the targets file '{path}': {e.Message}");
+            return [];
+        }
         var run = new List<ResolvedTarget>();
         foreach (var t in all.Where(t => only is null || only.Contains(t.Name, StringComparer.OrdinalIgnoreCase)))
         {
