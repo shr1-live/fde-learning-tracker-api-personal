@@ -104,6 +104,34 @@ public sealed class ApiFixture : IAsyncLifetime
 
     public Task<HttpResponseMessage> Raw(string path) => _client.GetAsync(path);
 
+    /// <summary>Uploads one file as a multipart form, like the browser does. The type we claim is deliberately useless: the server must not trust it.</summary>
+    public async Task<ApiResult> Upload(string path, TestUser user, string fileName, byte[] bytes, string? label = null)
+    {
+        using var form = new MultipartFormDataContent();
+        var part = new ByteArrayContent(bytes);
+        part.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+        form.Add(part, "file", fileName);
+        if (label is not null) form.Add(new StringContent(label), "label");
+        using var req = new HttpRequestMessage(HttpMethod.Post, path) { Content = form };
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token(user));
+        using var res = await _client.SendAsync(req);
+        var text = await res.Content.ReadAsStringAsync();
+        JsonNode? json = null;
+        try { json = string.IsNullOrEmpty(text) ? null : JsonNode.Parse(text); } catch (JsonException) { /* not json */ }
+        return new ApiResult((int)res.StatusCode, json);
+    }
+
+    public sealed record FileResult(int Status, string? ContentType, string? Disposition, string? NoSniff, string? Csp, byte[] Body);
+
+    public async Task<FileResult> Download(string path, TestUser? user)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Get, path);
+        if (user is not null) req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token(user));
+        using var res = await _client.SendAsync(req);
+        string? H(string name) => res.Headers.TryGetValues(name, out var v) ? v.FirstOrDefault() : null;
+        return new FileResult((int)res.StatusCode, res.Content.Headers.ContentType?.ToString(), res.Content.Headers.ContentDisposition?.ToString(), H("X-Content-Type-Options"), H("Content-Security-Policy"), await res.Content.ReadAsByteArrayAsync());
+    }
+
     public Task<HttpResponseMessage> GetFromOrigin(string path, string origin)
     {
         var req = new HttpRequestMessage(HttpMethod.Get, path);

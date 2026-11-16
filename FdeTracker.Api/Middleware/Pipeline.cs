@@ -46,9 +46,15 @@ public sealed class ErrorHandlingMiddleware(RequestDelegate next, ILogger<ErrorH
 public sealed class SecurityMiddleware(RequestDelegate next, IHostEnvironment env)
 {
     public const long MaxBody = 64 * 1024;
+    public const long UploadMaxBody = 2_800_000; // one 2 MB file plus the form wrapper
+
+    /// <summary>Only the submission file upload may exceed 64 KB; every other route keeps the small cap.</summary>
+    static long LimitFor(PathString path) =>
+        path.StartsWithSegments("/api/submissions") && path.Value!.EndsWith("/files", StringComparison.OrdinalIgnoreCase) ? UploadMaxBody : MaxBody;
 
     public Task Invoke(HttpContext ctx)
     {
+        var limit = LimitFor(ctx.Request.Path);
         var h = ctx.Response.Headers;
         h["X-Content-Type-Options"] = "nosniff";
         h["X-Frame-Options"] = "DENY";
@@ -56,8 +62,8 @@ public sealed class SecurityMiddleware(RequestDelegate next, IHostEnvironment en
         if (!env.IsDevelopment()) h["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"; // the dev docs page needs scripts
         h["Strict-Transport-Security"] = "max-age=15552000; includeSubDomains";
         h["Cross-Origin-Resource-Policy"] = "same-origin";
-        if (ctx.Request.ContentLength > MaxBody) return ErrorBody.Write(ctx, 413, "Request too large");
-        if (ctx.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } f) f.MaxRequestBodySize = MaxBody;
+        if (ctx.Request.ContentLength > limit) return ErrorBody.Write(ctx, 413, "Request too large");
+        if (ctx.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } f) f.MaxRequestBodySize = limit;
         return next(ctx);
     }
 }

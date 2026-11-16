@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using FdeTracker.Api.Services.Llm;
@@ -347,5 +348,176 @@ public sealed class ApiTests(ApiFixture api) : IClassFixture<ApiFixture>
         var skills = r.Body["candidates"]![0]!["matched_skills"]!.AsArray().Select(x => (string)x!["skill"]!).ToArray();
         Assert.Equal(new[] { "Docker" }, skills);
         Assert.Contains("removed", (string)r.Body["warnings"]![0]!);
+    }
+
+    // ---- submissions and review. F is the member who submits, C is the reviewer, D is another member, B stays out of it.
+    static readonly byte[] PngBytes = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4, 5];
+    static string Key(string day) => $"/api/submissions/{day}";
+
+    [Fact]
+    public async Task T23_a_member_builds_a_submission_with_links_and_files_and_submits_it()
+    {
+        Assert.Equal(200, (await api.Call("POST", $"/api/admin/users/{F.Id}/access", Admin, new { status = "approved" })).Status);
+        Assert.Equal(404, (await api.Call("GET", Key("week1-day1"), F)).Status); // nothing yet
+
+        var draft = await api.Call("PUT", Key("week1-day1"), F, new { note = "Built the endpoint and compared two models." });
+        Assert.Equal(200, draft.Status);
+        Assert.Equal("draft", (string)draft.Body["status"]!);
+        Assert.True((bool)draft.Body["editable"]!);
+
+        Assert.Equal(400, (await api.Call("POST", Key("week1-day1") + "/links", F, new { label = "Repo", url = "http://insecure.example/x" })).Status); // https only
+        Assert.Equal(400, (await api.Call("POST", Key("week1-day1") + "/submit", F)).Status); // nothing to review yet
+        var link = await api.Call("POST", Key("week1-day1") + "/links", F, new { label = "Repository", url = "https://github.com/example/week1" });
+        Assert.Equal(200, link.Status);
+        var shot = await api.Upload(Key("week1-day1") + "/files", F, "report.png", PngBytes, "Comparison screenshot");
+        Assert.Equal(200, shot.Status);
+        Assert.Equal(2, shot.Body["items"]!.AsArray().Count);
+        Assert.True((bool)shot.Body["items"]![1]!["previewable"]!);
+        Assert.Equal("image/png", (string)shot.Body["items"]![1]!["content_type"]!);
+
+        var sent = await api.Call("POST", Key("week1-day1") + "/submit", F);
+        Assert.Equal(200, sent.Status);
+        Assert.Equal("submitted", (string)sent.Body["status"]!);
+        Assert.False((bool)sent.Body["editable"]!);
+        Assert.NotNull(sent.Body["submitted_at"]);
+
+        Assert.Equal(409, (await api.Call("PUT", Key("week1-day1"), F, new { note = "sneaky edit" })).Status); // locked while waiting
+        Assert.Equal(409, (await api.Call("POST", Key("week1-day1") + "/links", F, new { label = "x", url = "https://example.com/x" })).Status);
+        var mine = await api.Call("GET", "/api/submissions", F);
+        Assert.Contains(mine.Body.AsArray(), x => (string)x!["task_key"]! == "week1-day1" && (string)x["status"]! == "submitted" && (int)x["item_count"]! == 2);
+        Assert.Equal(400, (await api.Call("GET", "/api/submissions/Bad_Key", F)).Status);
+    }
+
+    [Fact]
+    public async Task T24_files_are_checked_by_their_content_and_size_and_names_are_cleaned()
+    {
+        var path = Key("week1-day2") + "/files";
+        Assert.Equal(415, (await api.Upload(path, F, "tool.png", [0x4D, 0x5A, 0x90, 0x00, 0x03, 0x00], "program")).Status); // a program renamed to .png
+        Assert.Equal(400, (await api.Upload(path, F, "empty.png", [], "empty")).Status);
+        Assert.Equal(413, (await api.Upload(path, F, "big.png", [.. PngBytes, .. new byte[2 * 1024 * 1024]], "too big")).Status);
+        Assert.Equal(413, (await api.Upload(path, F, "huge.png", [.. PngBytes, .. new byte[3 * 1024 * 1024]], "way too big")).Status); // stopped before it is read
+
+        var text = await api.Upload(path, F, "../../evil.sh", Encoding.UTF8.GetBytes("<script>alert(1)</script>"), "Notes");
+        Assert.Equal(200, text.Status);
+        var name = (string)text.Body["items"]![0]!["file_name"]!;
+        Assert.Equal("evil.txt", name); // folders dropped; a web page is just text, with a text name
+        Assert.StartsWith("text/plain", (string)text.Body["items"]![0]!["content_type"]!);
+        Assert.False((bool)text.Body["items"]![0]!["previewable"]!);
+    }
+
+    [Fact]
+    public async Task T25_a_submission_holds_at_most_eight_proofs()
+    {
+        for (var i = 1; i <= 8; i++)
+            Assert.Equal(200, (await api.Call("POST", Key("week1-day3") + "/links", F, new { label = $"Proof {i}", url = $"https://example.com/p{i}" })).Status);
+        Assert.Equal(429, (await api.Call("POST", Key("week1-day3") + "/links", F, new { label = "Proof 9", url = "https://example.com/p9" })).Status);
+        var detail = await api.Call("GET", Key("week1-day3"), F);
+        var firstItem = (string)detail.Body["items"]![0]!["id"]!;
+        var after = await api.Call("DELETE", Key("week1-day3") + "/items/" + firstItem, F);
+        Assert.Equal(200, after.Status);
+        Assert.Equal(7, after.Body["items"]!.AsArray().Count);
+        Assert.Equal(404, (await api.Call("DELETE", Key("week1-day3") + "/items/" + Guid.NewGuid(), F)).Status);
+    }
+
+    [Fact]
+    public async Task T26_downloads_are_for_the_owner_and_reviewers_only_and_are_served_safely()
+    {
+        var detail = await api.Call("GET", Key("week1-day1"), F);
+        var image = (string)detail.Body["items"]!.AsArray().First(i => (string)i!["kind"]! == "file")!["id"]!;
+        var url = $"/api/submissions/items/{image}/file";
+
+        var own = await api.Download(url, F);
+        Assert.Equal(200, own.Status);
+        Assert.Equal("image/png", own.ContentType);
+        Assert.StartsWith("inline", own.Disposition);
+        Assert.Equal("nosniff", own.NoSniff);
+        Assert.Contains("sandbox", own.Csp);
+        Assert.Equal(PngBytes, own.Body);
+
+        Assert.Equal(200, (await api.Download(url, C)).Status);          // reviewer
+        Assert.Equal(404, (await api.Download(url, D)).Status);          // another member: it does not exist for them
+        Assert.Equal(401, (await api.Download(url, null)).Status);
+        Assert.Equal(404, (await api.Download($"/api/submissions/items/{Guid.NewGuid()}/file", F)).Status);
+
+        var note = await api.Call("GET", Key("week1-day2"), F);
+        var textId = (string)note.Body["items"]![0]!["id"]!;
+        var asText = await api.Download($"/api/submissions/items/{textId}/file", C);
+        Assert.StartsWith("attachment", asText.Disposition); // anything that is not an image is a download, never shown in the page
+        Assert.StartsWith("text/plain", asText.ContentType);
+    }
+
+    [Fact]
+    public async Task T27_the_review_team_sees_everyones_work_and_members_see_none_of_it()
+    {
+        Assert.Equal(403, (await api.Call("GET", "/api/review/submissions", D)).Status);
+        Assert.Equal(403, (await api.Call("GET", "/api/review/submissions/counts", D)).Status);
+        Assert.Equal(401, (await api.Call("GET", "/api/review/submissions")).Status);
+
+        var queue = await api.Call("GET", "/api/review/submissions?status=submitted", C);
+        Assert.Equal(200, queue.Status);
+        var row = queue.Body.AsArray().First(x => (string)x!["task_key"]! == "week1-day1")!;
+        Assert.Equal(2, (int)row["item_count"]!);
+        string id = (string)row["id"]!;
+        Assert.DoesNotContain(queue.Body.AsArray(), x => (string)x!["task_key"]! == "week1-day3"); // drafts are private
+        Assert.Equal(400, (await api.Call("GET", "/api/review/submissions?status=bogus", C)).Status);
+
+        var detail = await api.Call("GET", $"/api/review/submissions/{id}", C);
+        Assert.Equal(200, detail.Status);
+        Assert.Equal(2, detail.Body["items"]!.AsArray().Count);
+        Assert.Equal(403, (await api.Call("GET", $"/api/review/submissions/{id}", D)).Status);
+        Assert.Equal(403, (await api.Call("POST", $"/api/review/submissions/{id}", D, new { decision = "approve" })).Status);
+
+        var draftId = (string)(await api.Call("GET", Key("week1-day3"), F)).Body["id"]!;
+        Assert.Equal(404, (await api.Call("GET", $"/api/review/submissions/{draftId}", C)).Status); // a reviewer cannot read a draft
+        Assert.Equal(404, (await api.Call("POST", $"/api/review/submissions/{draftId}", C, new { decision = "approve" })).Status);
+    }
+
+    [Fact]
+    public async Task T28_review_lifecycle_changes_requested_then_fixed_then_approved()
+    {
+        var id = (string)(await api.Call("GET", Key("week1-day1"), F)).Body["id"]!;
+        Assert.Equal(400, (await api.Call("POST", $"/api/review/submissions/{id}", C, new { decision = "request_changes" })).Status); // a comment is required
+        Assert.Equal(400, (await api.Call("POST", $"/api/review/submissions/{id}", C, new { decision = "reject" })).Status);
+
+        var sentBack = await api.Call("POST", $"/api/review/submissions/{id}", C, new { decision = "request_changes", comment = "Add the token counts." });
+        Assert.Equal(200, sentBack.Status);
+        Assert.Equal("changes_requested", (string)sentBack.Body["status"]!);
+
+        var mine = await api.Call("GET", Key("week1-day1"), F);
+        Assert.True((bool)mine.Body["editable"]!);
+        Assert.Equal("Add the token counts.", (string)mine.Body["reviews"]![0]!["comment"]!);
+        var fixedNote = await api.Call("PUT", Key("week1-day1"), F, new { note = "Added the token counts." });
+        Assert.Equal(200, fixedNote.Status);
+        Assert.Equal("submitted", (string)(await api.Call("POST", Key("week1-day1") + "/submit", F)).Body["status"]!);
+
+        var approved = await api.Call("POST", $"/api/review/submissions/{id}", C, new { decision = "approve", comment = "Good." });
+        Assert.Equal(200, approved.Status);
+        Assert.Equal("approved", (string)approved.Body["status"]!);
+        Assert.Equal(2, approved.Body["reviews"]!.AsArray().Count); // the history is kept
+        Assert.Equal(409, (await api.Call("POST", $"/api/review/submissions/{id}", C, new { decision = "approve" })).Status); // already decided
+        Assert.Equal(409, (await api.Call("PUT", Key("week1-day1"), F, new { note = "edit after approval" })).Status);
+
+        var counts = await api.Call("GET", "/api/review/submissions/counts", C);
+        Assert.True((int)counts.Body["approved"]! >= 1);
+    }
+
+    [Fact]
+    public async Task T29_reviewers_cannot_approve_their_own_submission_but_an_admin_can_review_it()
+    {
+        await api.Call("PUT", Key("week1-day5"), C, new { note = "My own work." });
+        await api.Call("POST", Key("week1-day5") + "/links", C, new { label = "Demo", url = "https://example.com/demo" });
+        var sent = await api.Call("POST", Key("week1-day5") + "/submit", C);
+        Assert.Equal("submitted", (string)sent.Body["status"]!);
+        string id = (string)sent.Body["id"]!;
+        Assert.Equal(403, (await api.Call("POST", $"/api/review/submissions/{id}", C, new { decision = "approve" })).Status);
+        Assert.Equal(200, (await api.Call("POST", $"/api/review/submissions/{id}", Admin, new { decision = "approve" })).Status);
+    }
+
+    [Fact]
+    public async Task T30_submission_actions_are_in_the_audit_trail()
+    {
+        Assert.True(await api.Count("select count(*) from audit_log where action like 'submission.%'") >= 10);
+        Assert.True(await api.Count("select count(*) from audit_log where action = 'submission.review.approve'") >= 2);
+        Assert.Equal(0, await api.Count("select count(*) from submission_items where kind = 'file' and (data is null or size_bytes is null)"));
     }
 }

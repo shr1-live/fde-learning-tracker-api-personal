@@ -33,6 +33,7 @@ builder.Services.AddSingleton<ContentRepository>();
 builder.Services.AddSingleton<ReviewRepository>();
 builder.Services.AddSingleton<ProgramRepository>();
 builder.Services.AddSingleton<LlmCallRepository>();
+builder.Services.AddSingleton<SubmissionRepository>();
 builder.Services.AddSingleton<PromptLibrary>();
 builder.Services.AddSingleton<ILlmClient>(sp =>
 {
@@ -45,6 +46,8 @@ builder.Services.AddSingleton<ContentService>();
 builder.Services.AddSingleton<ReviewService>();
 builder.Services.AddSingleton<ProgramService>();
 builder.Services.AddSingleton<AssistantService>();
+builder.Services.AddSingleton<SubmissionService>();
+builder.Services.AddSingleton<SubmissionReviewService>();
 
 // ---- controllers and JSON (snake_case on the wire, unknown fields refused)
 builder.Services.AddControllers()
