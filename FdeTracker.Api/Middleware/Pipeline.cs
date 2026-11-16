@@ -49,12 +49,14 @@ public sealed class SecurityMiddleware(RequestDelegate next, IHostEnvironment en
     public const long UploadMaxBody = 2_800_000; // one 2 MB file plus the form wrapper
 
     /// <summary>Only the submission file upload may exceed 64 KB; every other route keeps the small cap.</summary>
-    static long LimitFor(PathString path) =>
-        path.StartsWithSegments("/api/submissions") && path.Value!.EndsWith("/files", StringComparison.OrdinalIgnoreCase) ? UploadMaxBody : MaxBody;
+    static readonly System.Text.RegularExpressions.Regex UploadRoute = new(@"^/api/submissions/[a-z0-9-]{3,60}/files\z", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(50));
+
+    static long LimitFor(HttpRequest request) =>
+        HttpMethods.IsPost(request.Method) && UploadRoute.IsMatch(request.Path.Value ?? "") ? UploadMaxBody : MaxBody;
 
     public Task Invoke(HttpContext ctx)
     {
-        var limit = LimitFor(ctx.Request.Path);
+        var limit = LimitFor(ctx.Request);
         var h = ctx.Response.Headers;
         h["X-Content-Type-Options"] = "nosniff";
         h["X-Frame-Options"] = "DENY";

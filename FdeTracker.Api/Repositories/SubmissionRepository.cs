@@ -9,6 +9,9 @@ public sealed class SubmissionRepository
     const string ItemCols = "id, submission_id, kind, label, url, file_name, content_type, size_bytes, created_at";
     const string Author = "coalesce(u.display_name, split_part(u.email, '@', 1))";
 
+    /// <summary>Serialises a person's changes so the submission count and the storage total cannot be raced by parallel requests.</summary>
+    public Task LockUser(Session s, Guid userId) => s.Exec("select pg_advisory_xact_lock(hashtextextended(@key, 0))", new { key = "submissions:" + userId });
+
     public Task<SubmissionRow?> FindMine(Session s, Guid userId, string taskKey) =>
         s.First<SubmissionRow>("select * from submissions where user_id = @userId and task_key = @taskKey", new { userId, taskKey });
 
@@ -58,7 +61,7 @@ public sealed class SubmissionRepository
     public Task<StoredFile?> File(Session s, Guid itemId) =>
         s.First<StoredFile>(
             """
-            select b.user_id as owner_id, i.file_name, i.content_type, i.data
+            select b.user_id as owner_id, b.status, i.file_name, i.content_type, i.data
             from submission_items i join submissions b on b.id = i.submission_id
             where i.id = @itemId and i.kind = 'file'
             """, new { itemId });

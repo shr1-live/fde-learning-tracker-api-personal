@@ -34,6 +34,7 @@ public sealed class SubmissionItemRow
 public sealed class StoredFile
 {
     public Guid OwnerId { get; set; }
+    public string Status { get; set; } = "";
     public string FileName { get; set; } = "";
     public string ContentType { get; set; } = "";
     public byte[] Data { get; set; } = [];

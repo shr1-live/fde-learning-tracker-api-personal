@@ -97,12 +97,14 @@ public sealed class SubmissionService(Db db, SubmissionRepository repo, AuditRep
     public Task<StoredFile> Download(AppUser user, Guid itemId) => db.Read(async s =>
     {
         var file = await repo.File(s, itemId);
-        if (file is null || (file.OwnerId != user.Id && user.Role == "member")) throw ApiException.NotFound();
+        // Owner: always. Reviewers and admins: only once the work is submitted (a draft is private). Anyone else: it does not exist.
+        if (file is null || (file.OwnerId != user.Id && (user.Role == "member" || file.Status == "draft"))) throw ApiException.NotFound();
         return file;
     });
 
     async Task<SubmissionRow> EditableOrCreate(Session s, Guid userId, string taskKey, bool createIfMissing = true)
     {
+        await repo.LockUser(s, userId);
         var row = await repo.LockMine(s, userId, taskKey);
         if (row is null)
         {

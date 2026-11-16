@@ -441,9 +441,10 @@ public sealed class ApiTests(ApiFixture api) : IClassFixture<ApiFixture>
 
         var note = await api.Call("GET", Key("week1-day2"), F);
         var textId = (string)note.Body["items"]![0]!["id"]!;
-        var asText = await api.Download($"/api/submissions/items/{textId}/file", C);
+        var asText = await api.Download($"/api/submissions/items/{textId}/file", F);
         Assert.StartsWith("attachment", asText.Disposition); // anything that is not an image is a download, never shown in the page
         Assert.StartsWith("text/plain", asText.ContentType);
+        Assert.Equal(404, (await api.Download($"/api/submissions/items/{textId}/file", C)).Status); // week1-day2 is still a draft: private, even from reviewers
     }
 
     [Fact]
@@ -519,5 +520,29 @@ public sealed class ApiTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.True(await api.Count("select count(*) from audit_log where action like 'submission.%'") >= 10);
         Assert.True(await api.Count("select count(*) from audit_log where action = 'submission.review.approve'") >= 2);
         Assert.Equal(0, await api.Count("select count(*) from submission_items where kind = 'file' and (data is null or size_bytes is null)"));
+    }
+
+    [Fact]
+    public async Task T31_parallel_uploads_cannot_get_past_the_storage_limit()
+    {
+        // Twelve 1.9 MB files to twelve different tasks at once: the 20 MB cap must hold (at most ten fit).
+        var big = new byte[1_990_000];
+        PngBytes.CopyTo(big, 0);
+        var results = await Task.WhenAll(Enumerable.Range(1, 12).Select(i => api.Upload($"/api/submissions/quota-{i:D2}/files", D, "big.png", big, $"File {i}")));
+        var accepted = results.Count(r => r.Status == 200);
+        Assert.InRange(accepted, 1, 10);
+        Assert.All(results.Where(r => r.Status != 200), r => Assert.Equal(413, r.Status));
+        var stored = await api.Count($"select coalesce(sum(i.size_bytes), 0) from submission_items i join submissions s on s.id = i.submission_id where s.user_id = '{D.Id}'");
+        Assert.True(stored <= 20L * 1024 * 1024, $"stored {stored} bytes");
+    }
+
+    [Fact]
+    public async Task T32_only_the_upload_route_may_carry_a_big_body()
+    {
+        // "files" is a legal task key: its note route must keep the small 64 KB cap.
+        Assert.Equal(413, (await api.Call("PUT", "/api/submissions/files", F, new { note = new string('a', 100_000) })).Status);
+        // And the real upload route still takes a 2 MB file.
+        var ok = await api.Upload(Key("week1-day4") + "/files", F, "small.png", PngBytes, "ok");
+        Assert.Equal(200, ok.Status);
     }
 }
