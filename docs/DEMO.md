@@ -23,8 +23,8 @@ Open **Week 1 report**. Show: criteria met, the plain-words explanation for each
 In a terminal, show `dotnet test` passing, and `docs/evals/` with the generated reports for Day 1 and Day 2.
 
 ## 5. Submitting proof and reviewing it (2 min)
-As a member, open **Week 1 tasks**. Under a day, add a link and a screenshot, then **Submit for review**; the day shows "Waiting for review" and locks.
-Switch to a reviewer (in a development build the sidebar has a "Test account" switcher), open **Review submissions**, open the item, look at the proof, and send it back with a comment. Switch back to the member: the comment is shown, the day is editable again, and it can be resubmitted. Approve it as the reviewer to finish.
+As a learner, open **Week 1 tasks**. Under a day, add a link and a screenshot, write what you learned, rate yourself 1 to 5, then **Submit for review**; the day shows "Waiting for review" and locks.
+Switch to the reviewer (in a development build the sidebar has a "Test account" switcher; the reviewer sees no upload forms on Week 1 tasks, only where learners stand), open **Review submissions**, open the item, look at the proof, and send it back with a comment. Switch back to the member: the comment is shown, the day is editable again, and it can be resubmitted. Approve it as the reviewer to finish.
 Say: members cannot see the review page or anyone else's work; the server enforces this, hiding the menu item is only a convenience.
 
 ## If something goes wrong

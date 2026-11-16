@@ -104,7 +104,8 @@ A person hands in a task (for example a Week 1 day) with **proof**, and reviewer
 
 - **Proof:** https links, or files (PNG, JPG, GIF, WebP, PDF, plain text or ZIP, up to 2 MB each, 8 per submission, 20 MB per person). Files are stored in the database and identified by their own bytes, never by their name or the type the browser claims; names are cleaned; downloads are served as attachments (images inline) with a sandbox policy and `nosniff`.
 - **Lifecycle:** draft, then submitted, then approved or changes requested. After changes are requested the person edits and submits again. Every decision and comment is kept.
-- **Roles:** a member sees and edits only their own work. Reviewers and admins see everyone's submitted work (never drafts) and decide on it; a reviewer cannot decide on their own work. A file can be downloaded by its owner and, once submitted, by reviewers and admins; for anyone else it does not exist.
+- **What the learner writes:** what they did, what they learned and a 1 to 5 self-rating (the programme sheet's columns). Submitting needs proof, the learned text and a rating, and says everything that is missing at once. Saves are partial: a field that is left out is kept, an explicit null clears it.
+- **Roles:** a member sees and edits only their own work. Reviewers review: they cannot create or change submissions (403), only read, review and download submitted work. The admin also takes part, so can submit as well. Reviewers and admins see everyone's submitted work (never drafts) and decide on it. A file can be downloaded by its owner and, once submitted, by reviewers and admins; for anyone else it does not exist.
 - **Safety:** changes are serialised per person (so parallel uploads cannot pass the storage cap), only the upload route may carry more than 64 KB, and every action is written to the audit log.
 
 ## Tests
