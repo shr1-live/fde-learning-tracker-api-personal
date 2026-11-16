@@ -48,6 +48,57 @@ Request flow: route -> filters (approved / role) -> controller -> service (rules
 | `ALLOWED_DOMAIN`, `ADMIN_EMAIL`, `FREE_SEATS` | no | defaults in `render.yaml` |
 | `PORT` | no | set by Render |
 
+## Recruitment assistant (LLM feature)
+
+`POST /api/assistant/analyze` takes a job description and 1 to 5 candidate profiles and returns, for each candidate: a fit rating, matched skills **each with a quote from the profile**, gaps, and what the profile does not say. It is for approved users only, with a daily cap per person.
+
+How it protects the result:
+
+- Job and candidate text is wrapped in tags with angle brackets escaped, and the prompt says it is data, never instructions.
+- The model's answer must be in a fixed shape. Every quote is checked against the profile; a claim without a real quote is removed and reported as a warning. For known skills the quote must mention that skill.
+- Two plain functions (find skills, score a match) give an independent keyword check next to the model's answer.
+- Anything unexpected from the model becomes a clean "unusable answer" (502), never a crash. Provider errors, timeouts and rate limits become clear messages; the provider's body and the key are never shown.
+- Every call is logged (model, prompt version, tokens, latency, status; no prompt text) and counts toward the daily cap, including failed and cancelled calls.
+
+Prompt versions live in `FdeTracker.Api/Prompts/analyze.v1.md` to `v3.md`; `v3` is the default and can be chosen per request.
+
+### Assistant settings (environment variables only)
+
+| Name | Meaning |
+|---|---|
+| `LLM_PROVIDER` | `openai` (default: any provider with the common chat-completions API, such as Gemini, Groq, Ollama) or `anthropic` (Claude) |
+| `LLM_BASE_URL` | the provider's address; needed for `openai`, must NOT be set for `anthropic` |
+| `LLM_API_KEY` | the key (any non-empty text for a local Ollama). Never put it in code, in the repo or in chat |
+| `LLM_MODEL` | the model name |
+| `LLM_DAILY_CAP` | analyses per person per 24 hours (default 20) |
+| `LLM_TIMEOUT_SECONDS`, `LLM_RETRY_DELAY_MS` | per-call timeout (default 30) and retry wait (default 1000) |
+
+Without `LLM_API_KEY` and `LLM_MODEL` the endpoint answers 503 and nothing else is affected.
+
+### Try it with a free local model (Ollama)
+
+```bash
+ollama pull qwen2.5:3b
+export LLM_BASE_URL=http://127.0.0.1:11434/v1 LLM_API_KEY=local LLM_MODEL=qwen2.5:3b LLM_TIMEOUT_SECONDS=180
+dotnet run --project FdeTracker.Api      # with DATABASE_URL and SUPABASE_URL set as above
+```
+
+### Comparing models and prompt versions (Evals)
+
+`FdeTracker.Evals` is a command-line tool. Which models run is listed in `evals/targets.json` (name, provider, address, model, and the NAME of the environment variable that holds the key). A model without its key is skipped with a message; local ones need no key.
+
+```bash
+dotnet run --project FdeTracker.Evals -- day1    # same fixed prompt set on every model: speed, tokens, pass or fail
+dotnet run --project FdeTracker.Evals -- day2    # every prompt version on the same candidates, twice, to check repeatability
+# EVAL_ONLY=claude  picks one target; EVAL_RUN=name labels the output files; ANTHROPIC_API_KEY adds Claude
+```
+
+Results and generated reports are written to `docs/evals/`. The frontend's Week 1 report page reads the same results files.
+
+## Tests
+
+`dotnet test` runs the integration tests against a throwaway Postgres in Docker (Docker must be running) and the client tests against a fake HTTP layer (no network, no key, no cost). The model is always scripted in tests.
+
 ## Run locally
 
 ```bash
@@ -80,4 +131,6 @@ dotnet test        # needs Docker running: starts a throwaway Postgres
 | GET / POST | `/api/programs`, `/api/programs/{slug}` | approved |
 | POST / DELETE | `/api/programs/{slug}/items[/{id}]` | plan owner |
 | PUT | `/api/programs/{slug}/items/{id}/progress` | approved |
+| GET | `/api/assistant/usage` | approved |
+| POST | `/api/assistant/analyze` | approved, daily cap |
 | GET / POST | `/api/admin/users`, `/api/admin/users/{id}/access`, `/api/admin/users/{id}/role` | admin |
