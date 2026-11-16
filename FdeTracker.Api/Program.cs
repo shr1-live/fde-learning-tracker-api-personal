@@ -9,7 +9,9 @@ using FdeTracker.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.OpenApi;
 using Npgsql;
+using Scalar.AspNetCore;
 
 Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true; // column display_name -> property DisplayName
 
@@ -52,6 +54,16 @@ builder.Services.AddControllers()
             }));
         return new ObjectResult(new { error = "Invalid input", issues }) { StatusCode = 400 };
     });
+
+// ---- API documentation page (Development only, see below): lets you try every endpoint with a pasted token
+builder.Services.AddOpenApi(o => o.AddDocumentTransformer((doc, _, _) =>
+{
+    doc.Info.Title = "FDE Tracker API";
+    doc.Components ??= new OpenApiComponents();
+    doc.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
+    doc.Components.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme { Type = SecuritySchemeType.Http, Scheme = "bearer", BearerFormat = "JWT" };
+    return Task.CompletedTask;
+}));
 
 // ---- security: sign-in token, CORS, rate limits, proxy headers
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
@@ -96,6 +108,12 @@ app.UseRateLimiter();
 app.UseAuthorization();
 app.UseMiddleware<CurrentUserMiddleware>();
 app.MapControllers();
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    app.MapScalarApiReference(o => o.AddPreferredSecuritySchemes("Bearer")); // UI at /scalar
+    app.MapGet("/", () => Results.Redirect("/scalar"));
+}
 app.MapFallback(ctx => ErrorBody.Write(ctx, 404, "Not found"));
 
 await app.RunAsync();

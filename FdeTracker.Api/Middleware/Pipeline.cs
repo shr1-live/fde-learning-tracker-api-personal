@@ -43,7 +43,7 @@ public sealed class ErrorHandlingMiddleware(RequestDelegate next, ILogger<ErrorH
 }
 
 /// <summary>Adds the usual hardening headers and caps request bodies at 64 KB.</summary>
-public sealed class SecurityMiddleware(RequestDelegate next)
+public sealed class SecurityMiddleware(RequestDelegate next, IHostEnvironment env)
 {
     public const long MaxBody = 64 * 1024;
 
@@ -53,7 +53,7 @@ public sealed class SecurityMiddleware(RequestDelegate next)
         h["X-Content-Type-Options"] = "nosniff";
         h["X-Frame-Options"] = "DENY";
         h["Referrer-Policy"] = "no-referrer";
-        h["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'";
+        if (!env.IsDevelopment()) h["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"; // the dev docs page needs scripts
         h["Strict-Transport-Security"] = "max-age=15552000; includeSubDomains";
         h["Cross-Origin-Resource-Policy"] = "same-origin";
         if (ctx.Request.ContentLength > MaxBody) return ErrorBody.Write(ctx, 413, "Request too large");
