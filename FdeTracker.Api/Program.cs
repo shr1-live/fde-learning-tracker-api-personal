@@ -6,10 +6,13 @@ using FdeTracker.Api.Data;
 using FdeTracker.Api.Middleware;
 using FdeTracker.Api.Repositories;
 using FdeTracker.Api.Services;
+using FdeTracker.Api.Services.Llm;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.OpenApi;
 using Npgsql;
+using Scalar.AspNetCore;
 
 Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true; // column display_name -> property DisplayName
 
@@ -29,10 +32,14 @@ builder.Services.AddSingleton<AuditRepository>();
 builder.Services.AddSingleton<ContentRepository>();
 builder.Services.AddSingleton<ReviewRepository>();
 builder.Services.AddSingleton<ProgramRepository>();
+builder.Services.AddSingleton<LlmCallRepository>();
+builder.Services.AddSingleton<PromptLibrary>();
+builder.Services.AddSingleton<ILlmClient>(sp => new OpenAiCompatibleClient(new HttpClient(new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(5) }) { Timeout = Timeout.InfiniteTimeSpan }, sp.GetRequiredService<AppOptions>()));
 builder.Services.AddSingleton<UserService>();
 builder.Services.AddSingleton<ContentService>();
 builder.Services.AddSingleton<ReviewService>();
 builder.Services.AddSingleton<ProgramService>();
+builder.Services.AddSingleton<AssistantService>();
 
 // ---- controllers and JSON (snake_case on the wire, unknown fields refused)
 builder.Services.AddControllers()
@@ -52,6 +59,16 @@ builder.Services.AddControllers()
             }));
         return new ObjectResult(new { error = "Invalid input", issues }) { StatusCode = 400 };
     });
+
+// ---- API documentation page (Development only, see below): lets you try every endpoint with a pasted token
+builder.Services.AddOpenApi(o => o.AddDocumentTransformer((doc, _, _) =>
+{
+    doc.Info.Title = "FDE Tracker API";
+    doc.Components ??= new OpenApiComponents();
+    doc.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
+    doc.Components.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme { Type = SecuritySchemeType.Http, Scheme = "bearer", BearerFormat = "JWT" };
+    return Task.CompletedTask;
+}));
 
 // ---- security: sign-in token, CORS, rate limits, proxy headers
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
@@ -96,6 +113,12 @@ app.UseRateLimiter();
 app.UseAuthorization();
 app.UseMiddleware<CurrentUserMiddleware>();
 app.MapControllers();
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    app.MapScalarApiReference(o => o.AddPreferredSecuritySchemes("Bearer")); // UI at /scalar
+    app.MapGet("/", () => Results.Redirect("/scalar"));
+}
 app.MapFallback(ctx => ErrorBody.Write(ctx, 404, "Not found"));
 
 await app.RunAsync();

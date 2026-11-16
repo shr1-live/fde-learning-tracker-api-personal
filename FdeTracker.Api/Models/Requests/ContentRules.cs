@@ -4,9 +4,9 @@ namespace FdeTracker.Api.Models.Requests;
 
 public static class ContentPatterns
 {
-    public const string Topic = "^[a-z0-9-]{2,40}$";
-    public const string Stack = "^(dotnet|node|java|python)$";
-    public const string Kind = "^(article|video|link|note)$";
+    public const string Topic = "^[a-z0-9-]{2,40}\\z";
+    public const string Stack = "^(dotnet|node|java|python)\\z";
+    public const string Kind = "^(article|video|link|note)\\z";
 }
 
 public static class ContentRules

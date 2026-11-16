@@ -10,12 +10,19 @@
   <ItemGroup>
     <PackageReference Include="Dapper" Version="2.1.*" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.*" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.*" />
     <PackageReference Include="Npgsql" Version="10.0.*" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.21.0" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- The SQL migrations live at the repo root and ship next to the binary. -->
     <Content Include="..\migrations\*.sql" Link="migrations\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Prompt versions ship next to the binary so they can be compared and reviewed as files. -->
+    <Content Include="Prompts\*.md" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
