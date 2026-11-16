@@ -27,13 +27,14 @@ public sealed record CaseResult(string Model, string CaseId, string Kind, bool P
 /// <summary>Day 1: run one fixed prompt set against several models and score each answer automatically.</summary>
 public static class Day1Runner
 {
-    public static async Task<List<CaseResult>> Run(PromptSet set, string baseUrl, string apiKey, string[] models, int timeoutSeconds)
+    public static async Task<List<CaseResult>> Run(PromptSet set, IReadOnlyList<ResolvedTarget> targets, int timeoutSeconds)
     {
         var results = new List<CaseResult>();
         using var http = new HttpClient(new SocketsHttpHandler()) { Timeout = Timeout.InfiniteTimeSpan };
-        foreach (var model in models)
+        foreach (var target in targets)
         {
-            var client = new OpenAiCompatibleClient(http, new AppOptions { LlmBaseUrl = baseUrl, LlmApiKey = apiKey, LlmModel = model, LlmTimeoutSeconds = timeoutSeconds });
+            var model = target.Name; // results are labelled with the target name
+            var client = new OpenAiCompatibleClient(http, new AppOptions { LlmBaseUrl = target.BaseUrl, LlmApiKey = target.ApiKey, LlmModel = target.Model, LlmTimeoutSeconds = timeoutSeconds });
             foreach (var c in set.Cases)
             {
                 Console.Write($"{model,-14} {c.Id,-20} ");

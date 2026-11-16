@@ -1,6 +1,6 @@
 # Day 1: model comparison on a fixed prompt set
 
-Run on 2026-11-16 08:15 UTC. Same 10 prompts, same system prompt, temperature 0, for every model. Prompts: `evals/day1-prompts.json`. Raw results: `docs/evals/day1-results.json`.
+Run on 2026-11-16 08:15 UTC. Same 10 prompts, same system prompt, temperature 0, for every model. Prompts: `evals/day1-prompts.json`. Raw results: `docs/evals/day1-local-results.json`.
 
 ## Summary
 
