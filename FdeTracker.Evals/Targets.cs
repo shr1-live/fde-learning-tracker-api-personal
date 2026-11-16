@@ -13,6 +13,8 @@ public sealed class Target
     [JsonPropertyName("api_key_env")] public string? ApiKeyEnv { get; set; }
     /// <summary>"openai" (default) = any chat-completions provider; "anthropic" = Claude.</summary>
     [JsonPropertyName("provider")] public string Provider { get; set; } = "openai";
+    /// <summary>false = skipped unless picked by name (use for paid models, so a key in your shell never spends money by accident).</summary>
+    [JsonPropertyName("enabled")] public bool Enabled { get; set; } = true;
 }
 
 public sealed record ResolvedTarget(string Name, string BaseUrl, string Model, string ApiKey, string Provider);
@@ -35,6 +37,12 @@ public static class Targets
         var run = new List<ResolvedTarget>();
         foreach (var t in all.Where(t => only is null || only.Contains(t.Name, StringComparer.OrdinalIgnoreCase)))
         {
+            // Targets marked "enabled": false (for example a paid model) run only when picked by name with EVAL_ONLY.
+            if (!t.Enabled && only is null)
+            {
+                Console.WriteLine($"Skipping {t.Name}: not enabled by default. Run it with EVAL_ONLY={t.Name}.");
+                continue;
+            }
             var provider = (t.Provider ?? "openai").ToLowerInvariant();
             if (!LlmClientFactory.Providers.Contains(provider))
             {
@@ -42,7 +50,7 @@ public static class Targets
                 continue;
             }
             // Only a local chat-completions server (for example Ollama) may run without a key. Claude always needs one.
-            var local = provider == "openai" && (t.BaseUrl.Contains("127.0.0.1") || t.BaseUrl.Contains("localhost"));
+            var local = provider == "openai" && IsLoopback(t.BaseUrl);
             var key = t.ApiKeyEnv is { Length: > 0 } ? Environment.GetEnvironmentVariable(t.ApiKeyEnv) : null;
             if (string.IsNullOrWhiteSpace(key) && !local)
             {
@@ -53,4 +61,8 @@ public static class Targets
         }
         return run;
     }
+
+    /// <summary>True only when the address really points at this computer (a parsed host, not a substring).</summary>
+    static bool IsLoopback(string? baseUrl) =>
+        Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri) && (uri.IsLoopback || uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase));
 }

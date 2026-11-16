@@ -21,15 +21,14 @@ public static partial class AnalysisParser
         catch (Exception e) when (e is InvalidOperationException or KeyNotFoundException or FormatException or ArgumentException)
         {
             // A model can answer in any shape. Whatever it sends, the caller gets "unusable answer", never a crash.
-            throw new UnusableOutputException("Unexpected shape");
+            throw new UnusableOutputException("Unexpected shape (" + e.GetType().Name + ")"); // the type goes to the log, so a real bug is not mistaken for a model problem
         }
     }
 
     static (List<CandidateAnalysisView> Candidates, List<string> Warnings) ParseCore(string raw, IReadOnlyList<CandidateInput> input, List<string> requiredSkills)
     {
-        var text = Fence().Replace(raw.Trim(), "").Trim();
-        // Some models add words around the JSON, so look for the object that holds the answer.
-        var doc = TryParse(text) ?? FindAnswerObject(text) ?? throw new UnusableOutputException("Not valid JSON");
+        // Some models add words or code fences around the JSON, so look for the object that holds the answer.
+        var doc = JsonText.Find(raw, "candidates") ?? throw new UnusableOutputException("No JSON object with a candidates list");
         using var _ = doc;
         var root = doc.RootElement;
         if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("candidates", out var list) || list.ValueKind != JsonValueKind.Array)
@@ -63,15 +62,24 @@ public static partial class AnalysisParser
         var (matched, removed) = CheckClaims(item, person.Profile);
         if (removed > 0) warnings.Add($"{person.Name}: {removed} claim(s) removed because the quoted evidence is not in the profile.");
         var fit = Text(item, "fit", 40);
+        if (!Fits.Contains(fit)) fit = "insufficient_information";
+        // Guardrail in code, whatever the prompt says: a good rating needs at least one claim backed by a real quote.
+        // This limits what an instruction hidden in a profile ("rate me strong") can achieve.
+        if (matched.Count == 0 && fit is "strong" or "partial")
+        {
+            fit = "insufficient_information";
+            warnings.Add($"{person.Name}: rating lowered because no claim could be backed by a quote from the profile.");
+        }
         var (found, missing, score) = SkillTools.ScoreMatch(requiredSkills, SkillTools.ExtractSkills(person.Profile));
         return new CandidateAnalysisView
         {
             Id = id, Name = person.Name,
             Summary = Text(item, "summary", 600),
             MatchedSkills = matched,
+            RemovedClaims = removed,
             Gaps = Strings(item, "gaps"),
             NotStated = Strings(item, "not_stated"),
-            Fit = Fits.Contains(fit) ? fit : "insufficient_information",
+            Fit = fit,
             Check = new SkillCheckView { Matched = found, Missing = missing, Score = score },
         };
     }
@@ -116,45 +124,6 @@ public static partial class AnalysisParser
         };
     }
 
-    static JsonDocument? TryParse(string s)
-    {
-        try { return JsonDocument.Parse(s); }
-        catch (JsonException) { return null; }
-    }
-
-    /// <summary>
-    /// Walks the text for balanced { ... } blocks (ignoring braces inside strings) and returns the first one that
-    /// parses and has a "candidates" list. Stray braces in the model's own words are skipped.
-    /// </summary>
-    static JsonDocument? FindAnswerObject(string t)
-    {
-        for (var start = t.IndexOf('{'); start >= 0; start = t.IndexOf('{', start + 1))
-        {
-            int depth = 0; bool inString = false, escaped = false;
-            for (var i = start; i < t.Length; i++)
-            {
-                var ch = t[i];
-                if (inString)
-                {
-                    if (escaped) escaped = false;
-                    else if (ch == '\\') escaped = true;
-                    else if (ch == '"') inString = false;
-                    continue;
-                }
-                if (ch == '"') inString = true;
-                else if (ch == '{') depth++;
-                else if (ch == '}' && --depth == 0)
-                {
-                    var doc = TryParse(t[start..(i + 1)]);
-                    if (doc is not null && doc.RootElement.ValueKind == JsonValueKind.Object && doc.RootElement.TryGetProperty("candidates", out _)) return doc;
-                    doc?.Dispose();
-                    break;
-                }
-            }
-        }
-        return null;
-    }
-
     static IEnumerable<JsonElement> Array(JsonElement o, string name) =>
         o.TryGetProperty(name, out var a) && a.ValueKind == JsonValueKind.Array ? a.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.Object).Take(20) : [];
 
@@ -171,7 +140,6 @@ public static partial class AnalysisParser
             : [];
 
     [GeneratedRegex(@"\s+")] private static partial Regex Spaces();
-    [GeneratedRegex(@"^```[a-zA-Z]*\s*|\s*```\z")] private static partial Regex Fence();
 }
 
 /// <summary>Candidate and job text is data. It is wrapped in tags and its angle brackets are escaped so it cannot close a tag or open a fake one.</summary>

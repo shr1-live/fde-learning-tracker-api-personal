@@ -52,18 +52,19 @@ Criteria: consistent output structure (enforced and validated), prompt versions 
 
 ### Day 5: end to end
 
-Working flow from the Assistant page to the model and back, with validated input and output, two plain functions used by the service (find skills, score a match), clear failure messages, usage and latency logging, a daily cap per person, 36 automated tests, a README section, `docs/DEMO.md`, and this report.
+Working flow from the Assistant page to the model and back, with validated input and output, two plain functions used by the service (find skills, score a match), clear failure messages, usage and latency logging, a daily cap per person, 40 automated tests, a README section, `docs/DEMO.md`, and this report.
 
 ## 3. What testing found
 
 - **A crash found by the evaluation:** a model wrote a candidate id as text (`"1"`) and the parser threw, which in the live endpoint would have been a 500 error. Fixed: text ids are accepted, any odd shape becomes a clean "unusable answer", with a test.
 - **Parsing words around JSON:** models sometimes add sentences, some containing braces. The parser now finds the object that holds the answer instead of assuming the first and last brace.
-- **A leftover address cannot receive a Claude key:** setting `LLM_PROVIDER=anthropic` with `LLM_BASE_URL` still set is refused at start-up.
+- **A leftover address cannot receive a Claude key:** the Claude client always calls Anthropic's own address and ignores `LLM_BASE_URL`, with a test.
+- **Review of the default prompt:** switching the default to version 2 removes the explicit injection rule that version 3 has. Two answers: a code guardrail now lowers a good rating that has no quote behind it, whichever prompt is used (tested), and version 3 stays selectable. This is a mitigation, not proof: the Day 4 test set must include more injection cases per version.
 - **Accessibility:** an automated browser audit (Edge plus axe-core, WCAG 2.2 AA rules) of 10 pages, light and dark, desktop and phone, found progress bars without a role, tables not reachable by keyboard, and white text on a light-green tag (dark mode contrast 2.2:1). All fixed; the final audit shows 0 violations and no sideways scrolling.
 
 ## 4. Security notes
 
-Input is validated and limited; job and candidate text is wrapped in tags with angle brackets escaped and is described to the model as data; all SQL is parameterised; sign-in is verified against the Supabase project's public key; every route needs an approved user; the daily cap reserves the call under a per-person lock before the model is contacted, so parallel or aborted requests still count; errors never leak internals. An automated security review of the backend found no high-confidence vulnerabilities.
+Input is validated and limited; a rating needs at least one claim backed by a real quote (a hidden instruction cannot raise it on its own); job and candidate text is wrapped in tags with angle brackets escaped and is described to the model as data; all SQL is parameterised; sign-in is verified against the Supabase project's public key; every route needs an approved user; the daily cap reserves the call under a per-person lock before the model is contacted, so parallel or aborted requests still count; errors never leak internals. An automated security review of the backend found no high-confidence vulnerabilities.
 
 ## 5. What is not done (be clear about this)
 
@@ -71,7 +72,7 @@ Input is validated and limited; job and candidate text is wrapped in tags with a
 |---|---|
 | **Day 3: structured outputs and tool calling** | Not built. The two helper functions are plain code, not model tool calls. Needed: task schema, create/list/update/delete tools run only by our code, permission checks, confirmation before deleting, execution log. |
 | **Day 4: 30-case evaluation, guardrails, before and after** | Not built. The Day 1 and Day 2 runs are the basis; the injection result above is the first failure case to fix. |
-| **A hosted model in the comparison** | Claude client is built and tested with a fake provider, but no real Claude run exists yet: it needs the key on the owner's machine. Local small models are not representative of production quality. |
+| **A hosted model in the comparison** | Claude client is built and tested with a fake provider, but no real Claude run exists yet: it needs the key on the owner's machine (`EVAL_ONLY=claude`; the target is off by default because it is paid). Local small models are not representative of production quality. |
 | **Deployment** | Not deployed. Needs the Render service, a hosted model and its key set in the Render dashboard, and the frontend's API address. Local models cannot run on Render. |
 | **Merged to main** | Work is on feature branches and `develop`, not yet in `main`. |
 | **Streaming answers in the UI** | Not built; not an acceptance criterion. |

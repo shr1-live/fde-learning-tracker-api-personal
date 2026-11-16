@@ -90,7 +90,7 @@ public sealed class OpenAiCompatibleClient(HttpClient http, AppOptions options) 
         {
             model = Options.LlmModel,
             temperature = 0,
-            max_tokens = 1500, // bounds the cost of one answer
+            max_tokens = Options.LlmMaxTokens, // bounds the cost of one answer (LLM_MAX_TOKENS)
             response_format = new { type = "json_object" },
             messages = new object[] { new { role = "system", content = system }, new { role = "user", content = user } },
         });

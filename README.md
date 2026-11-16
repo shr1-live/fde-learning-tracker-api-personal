@@ -57,6 +57,7 @@ How it protects the result:
 - Job and candidate text is wrapped in tags with angle brackets escaped, and the prompt says it is data, never instructions.
 - The model's answer must be in a fixed shape. Every quote is checked against the profile; a claim without a real quote is removed and reported as a warning. For known skills the quote must mention that skill.
 - Two plain functions (find skills, score a match) give an independent keyword check next to the model's answer.
+- A guardrail in code, whatever the prompt says: a "strong" or "partial" rating with no claim backed by a real quote is lowered to "insufficient information" and a warning is added. This limits what an instruction hidden in a profile can achieve.
 - Anything unexpected from the model becomes a clean "unusable answer" (502), never a crash. Provider errors, timeouts and rate limits become clear messages; the provider's body and the key are never shown.
 - Every call is logged (model, prompt version, tokens, latency, status; no prompt text) and counts toward the daily cap, including failed and cancelled calls.
 
@@ -67,11 +68,12 @@ Prompt versions live in `FdeTracker.Api/Prompts/analyze.v1.md` to `v3.md`; `v2` 
 | Name | Meaning |
 |---|---|
 | `LLM_PROVIDER` | `openai` (default: any provider with the common chat-completions API, such as Gemini, Groq, Ollama) or `anthropic` (Claude) |
-| `LLM_BASE_URL` | the provider's address; needed for `openai`, must NOT be set for `anthropic` |
+| `LLM_BASE_URL` | the provider's address; needed for `openai`. Ignored for `anthropic`: Claude is always called at Anthropic's own address, so a stale value can never receive the key |
 | `LLM_API_KEY` | the key (any non-empty text for a local Ollama). Never put it in code, in the repo or in chat |
 | `LLM_MODEL` | the model name |
 | `LLM_DAILY_CAP` | analyses per person per 24 hours (default 20) |
 | `LLM_TIMEOUT_SECONDS`, `LLM_RETRY_DELAY_MS` | per-call timeout (default 30) and retry wait (default 1000) |
+| `LLM_MAX_TOKENS` | longest answer paid for per call (default 3000); raise it if several candidates get cut off |
 
 Without `LLM_API_KEY` and `LLM_MODEL` the endpoint answers 503 and nothing else is affected.
 
@@ -90,7 +92,8 @@ dotnet run --project FdeTracker.Api      # with DATABASE_URL and SUPABASE_URL se
 ```bash
 dotnet run --project FdeTracker.Evals -- day1    # same fixed prompt set on every model: speed, tokens, pass or fail
 dotnet run --project FdeTracker.Evals -- day2    # every prompt version on the same candidates, twice, to check repeatability
-# EVAL_ONLY=claude  picks one target; EVAL_RUN=name labels the output files; ANTHROPIC_API_KEY adds Claude
+# EVAL_ONLY=claude  runs the paid Claude target (disabled by default so a key in your shell never spends money by accident;
+#                   it also needs ANTHROPIC_API_KEY). EVAL_RUN=name labels the output files.
 ```
 
 Results and generated reports are written to `docs/evals/`. The frontend's Week 1 report page reads the same results files.

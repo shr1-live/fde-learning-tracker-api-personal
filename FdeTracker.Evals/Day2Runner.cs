@@ -72,12 +72,10 @@ public static class Day2Runner
     static IEnumerable<Day2Row> Score(string model, string version, int repeat, Day2Cases cases, List<CandidateInput> people, List<string> required, LlmResult r)
     {
         List<CandidateAnalysisViewLite> parsed;
-        List<string> warnings;
         try
         {
-            var (views, w) = AnalysisParser.Parse(r.Text, people, required);
-            parsed = views.Select(v => new CandidateAnalysisViewLite(v.Id, v.Fit, v.MatchedSkills.Select(m => m.Skill).ToArray(), v.NotStated.Count)).ToList();
-            warnings = w;
+            var (views, _) = AnalysisParser.Parse(r.Text, people, required);
+            parsed = views.Select(v => new CandidateAnalysisViewLite(v.Id, v.Fit, v.MatchedSkills.Select(m => m.Skill).ToArray(), v.NotStated.Count, v.RemovedClaims)).ToList();
         }
         catch (UnusableOutputException)
         {
@@ -88,7 +86,7 @@ public static class Day2Runner
         {
             var v = parsed.FirstOrDefault(x => x.Id == i + 1);
             var present = v is not null;
-            var grounded = present && !warnings.Any(x => x.StartsWith(c.Name + ":", StringComparison.Ordinal) && x.Contains("removed"));
+            var grounded = present && v!.RemovedClaims == 0; // structured count from the parser, not text matching
             var fitOk = present && c.Expect.Fit.Contains(v!.Fit);
             var clean = present && !v!.Skills.Any(s => c.Expect.MustNotClaim.Contains(s, StringComparer.OrdinalIgnoreCase));
             var incompleteOk = !c.Expect.Incomplete || (present && (v!.Fit == "insufficient_information" || v.NotStatedCount > 0));
@@ -96,5 +94,5 @@ public static class Day2Runner
         }).ToList();
     }
 
-    sealed record CandidateAnalysisViewLite(int Id, string Fit, string[] Skills, int NotStatedCount);
+    sealed record CandidateAnalysisViewLite(int Id, string Fit, string[] Skills, int NotStatedCount, int RemovedClaims);
 }

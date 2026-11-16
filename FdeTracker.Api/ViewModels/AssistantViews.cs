@@ -11,6 +11,8 @@ public sealed class CandidateAnalysisView
     public string Name { get; init; } = "";
     public string Summary { get; init; } = "";
     public List<MatchedSkillView> MatchedSkills { get; init; } = [];
+    /// <summary>Claims dropped because their quote was not in the profile.</summary>
+    public int RemovedClaims { get; init; }
     public List<string> Gaps { get; init; } = [];
     public List<string> NotStated { get; init; } = [];
     public string Fit { get; init; } = "";

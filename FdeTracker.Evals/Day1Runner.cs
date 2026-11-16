@@ -62,13 +62,10 @@ public static class Day1Runner
 
     static string ExtractAnswer(string text)
     {
-        try
-        {
-            using var doc = JsonDocument.Parse(text);
-            if (doc.RootElement.ValueKind == JsonValueKind.Object && doc.RootElement.TryGetProperty("answer", out var a))
-                return a.ValueKind == JsonValueKind.String ? a.GetString() ?? "" : a.ToString();
-        }
-        catch (JsonException) { /* fall through: keep the raw text */ }
+        // Finds the {"answer": ...} object even inside code fences or after a sentence, so no provider is marked down for its wrapping.
+        using var doc = JsonText.Find(text, "answer");
+        if (doc is not null && doc.RootElement.TryGetProperty("answer", out var a))
+            return a.ValueKind == JsonValueKind.String ? a.GetString() ?? "" : a.ToString();
         return text;
     }
 

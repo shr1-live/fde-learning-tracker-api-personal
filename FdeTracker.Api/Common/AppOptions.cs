@@ -19,6 +19,7 @@ public sealed class AppOptions
     public int LlmDailyCap { get; init; } = 20;
     public int LlmTimeoutSeconds { get; init; } = 30;
     public int LlmRetryDelayMs { get; init; } = 1000;
+    public int LlmMaxTokens { get; init; } = 3000; // longest answer we pay for; raise it if several candidates get cut off
 
     static string ProviderOf(string? value)
     {
@@ -32,9 +33,6 @@ public sealed class AppOptions
         string? Opt(string key) => c[key] is { Length: > 0 } v ? v : null;
         int Num(string key, int fallback) => int.TryParse(c[key], out var n) && n > 0 ? n : fallback;
         var provider = ProviderOf(Opt("LLM_PROVIDER"));
-        // A leftover address from another provider must never receive a Claude key.
-        if (provider == "anthropic" && Opt("LLM_BASE_URL") is not null)
-            throw new InvalidOperationException("LLM_BASE_URL is not used with LLM_PROVIDER=anthropic. Unset it.");
         return new AppOptions
         {
             DatabaseUrl = Need("DATABASE_URL"),
@@ -51,6 +49,7 @@ public sealed class AppOptions
             LlmDailyCap = Num("LLM_DAILY_CAP", 20),
             LlmTimeoutSeconds = Num("LLM_TIMEOUT_SECONDS", 30),
             LlmRetryDelayMs = Num("LLM_RETRY_DELAY_MS", 1000),
+            LlmMaxTokens = Num("LLM_MAX_TOKENS", 3000),
         };
     }
 }

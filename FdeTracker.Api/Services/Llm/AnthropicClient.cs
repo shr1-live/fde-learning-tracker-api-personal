@@ -21,12 +21,14 @@ public sealed class AnthropicClient(HttpClient http, AppOptions options) : HttpL
         var body = JsonSerializer.Serialize(new
         {
             model = Options.LlmModel,
-            max_tokens = 1500, // bounds the cost of one answer
+            max_tokens = Options.LlmMaxTokens, // bounds the cost of one answer (LLM_MAX_TOKENS)
             temperature = 0,
             system,
             messages = new object[] { new { role = "user", content = user } },
         });
-        var req = new HttpRequestMessage(HttpMethod.Post, (Options.LlmBaseUrl ?? DefaultBaseUrl).TrimEnd('/') + "/v1/messages") { Content = new StringContent(body, Encoding.UTF8, "application/json") };
+        // Always Anthropic's own address: LLM_BASE_URL belongs to the other provider type and is ignored here, so a stale
+        // address left over from another provider can never receive the Claude key.
+        var req = new HttpRequestMessage(HttpMethod.Post, DefaultBaseUrl + "/v1/messages") { Content = new StringContent(body, Encoding.UTF8, "application/json") };
         req.Headers.Add("x-api-key", Options.LlmApiKey);
         req.Headers.Add("anthropic-version", ApiVersion);
         return req;
