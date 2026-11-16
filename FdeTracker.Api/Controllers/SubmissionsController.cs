@@ -22,7 +22,7 @@ public sealed class SubmissionsController(SubmissionService submissions) : ApiCo
 
     // Reviewers review; they do not submit. Every route that changes a submission is for learners (members) and admins.
     [HttpPut("{taskKey}"), RequireRole("member", "admin")]
-    public async Task<IActionResult> SaveDetails([RegularExpression(Key)] string taskKey, SaveDetailsRequest body) => Ok(await submissions.SaveDetails(CurrentUser, taskKey, body.Note, body.Learned, body.Rating));
+    public async Task<IActionResult> SaveDetails([RegularExpression(Key)] string taskKey, SaveDetailsRequest body) => Ok(await submissions.SaveDetails(CurrentUser, taskKey, body));
 
     [HttpPost("{taskKey}/links"), RequireRole("member", "admin")]
     public async Task<IActionResult> AddLink([RegularExpression(Key)] string taskKey, AddLinkRequest body) => Ok(await submissions.AddLink(CurrentUser, taskKey, body.Label, body.Url));

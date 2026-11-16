@@ -1,6 +1,7 @@
 using FdeTracker.Api.Common;
 using FdeTracker.Api.Data;
 using FdeTracker.Api.Models;
+using FdeTracker.Api.Models.Requests;
 using FdeTracker.Api.Repositories;
 using FdeTracker.Api.ViewModels;
 
@@ -38,10 +39,10 @@ public sealed class SubmissionService(Db db, SubmissionRepository repo, AuditRep
         return await SubmissionAssembler.Build(s, repo, row);
     });
 
-    public Task<SubmissionView> SaveDetails(AppUser user, string taskKey, string? note, string? learned, int? rating) => db.Tx(async s =>
+    public Task<SubmissionView> SaveDetails(AppUser user, string taskKey, SaveDetailsRequest details) => db.Tx(async s =>
     {
         var row = await EditableOrCreate(s, user.Id, taskKey);
-        await repo.SetDetails(s, row.Id, note, learned, rating);
+        await repo.SetDetails(s, row.Id, details);
         await audit.Record(s, user.Id, "submission.details", row.Id.ToString());
         return await SubmissionAssembler.Build(s, repo, (await repo.ById(s, row.Id))!);
     });
@@ -87,9 +88,11 @@ public sealed class SubmissionService(Db db, SubmissionRepository repo, AuditRep
     public Task<SubmissionView> Submit(AppUser user, string taskKey) => db.Tx(async s =>
     {
         var row = await EditableOrCreate(s, user.Id, taskKey, createIfMissing: false);
-        if (await repo.ItemCount(s, row.Id) == 0) throw ApiException.BadRequest("Add at least one proof (a link or a file) before submitting");
-        if (string.IsNullOrWhiteSpace(row.Learned)) throw ApiException.BadRequest("Write what you learned before submitting");
-        if (row.Rating is null) throw ApiException.BadRequest("Rate yourself from 1 to 5 before submitting");
+        var missing = new List<string>();
+        if (await repo.ItemCount(s, row.Id) == 0) missing.Add("add at least one proof (a link or a file)");
+        if (string.IsNullOrWhiteSpace(row.Learned)) missing.Add("write what you learned");
+        if (row.Rating is null) missing.Add("rate yourself from 1 to 5");
+        if (missing.Count > 0) throw ApiException.BadRequest("Before submitting, " + string.Join(", ", missing));
         await repo.SetStatus(s, row.Id, "submitted");
         await audit.Record(s, user.Id, "submission.submit", row.Id.ToString());
         return await SubmissionAssembler.Build(s, repo, (await repo.ById(s, row.Id))!);

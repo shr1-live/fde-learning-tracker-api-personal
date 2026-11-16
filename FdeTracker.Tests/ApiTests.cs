@@ -380,7 +380,7 @@ public sealed class ApiTests(ApiFixture api) : IClassFixture<ApiFixture>
         var details = await api.Call("PUT", Key("week1-day1"), F, new { note = "Built the endpoint and compared two models.", learned = "Tokens are what models bill by; the bigger model was better but slower.", rating = 4 });
         Assert.Equal(200, details.Status);
         Assert.Equal(4, (int)details.Body["rating"]!);
-        Assert.Equal(200, (await api.Call("PUT", Key("week1-day1"), F, new { note = "n", learned = "l" })).Status); // saved without a rating...
+        Assert.Equal(200, (await api.Call("PUT", Key("week1-day1"), F, new { note = "n", learned = "l", rating = (int?)null })).Status); // saved with the rating cleared on purpose...
         Assert.Equal(400, (await api.Call("POST", Key("week1-day1") + "/submit", F)).Status); // ...so it cannot be submitted
         await api.Call("PUT", Key("week1-day1"), F, new { note = "Built the endpoint and compared two models.", learned = "Tokens are what models bill by; the bigger model was better but slower.", rating = 4 });
         var sent = await api.Call("POST", Key("week1-day1") + "/submit", F);
@@ -558,5 +558,23 @@ public sealed class ApiTests(ApiFixture api) : IClassFixture<ApiFixture>
         // And the real upload route still takes a 2 MB file.
         var ok = await api.Upload(Key("week1-day4") + "/files", F, "small.png", PngBytes, "ok");
         Assert.Equal(200, ok.Status);
+    }
+
+    [Fact]
+    public async Task T33_a_partial_save_changes_only_what_is_sent()
+    {
+        var path = Key("partial-update");
+        Assert.Equal(200, (await api.Call("PUT", path, D, new { note = "first note", learned = "first lesson", rating = 3 })).Status);
+        var onlyNote = await api.Call("PUT", path, D, new { note = "edited note" });   // learned and rating are left out
+        Assert.Equal("edited note", (string)onlyNote.Body["note"]!);
+        Assert.Equal("first lesson", (string)onlyNote.Body["learned"]!);                // not erased
+        Assert.Equal(3, (int)onlyNote.Body["rating"]!);
+        var cleared = await api.Call("PUT", path, D, new { rating = (int?)null });      // an explicit null clears just that field
+        Assert.Null(cleared.Body["rating"]);
+        Assert.Equal("edited note", (string)cleared.Body["note"]!);
+        var empty = await api.Call("POST", path + "/submit", D);                         // nothing to submit yet: every gap is named at once
+        Assert.Equal(400, empty.Status);
+        var message = (string)empty.Body["error"]!;
+        Assert.Contains("proof", message); Assert.Contains("rate yourself", message);
     }
 }

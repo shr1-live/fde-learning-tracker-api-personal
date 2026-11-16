@@ -1,5 +1,6 @@
 using FdeTracker.Api.Data;
 using FdeTracker.Api.Models;
+using FdeTracker.Api.Models.Requests;
 using FdeTracker.Api.ViewModels;
 
 namespace FdeTracker.Api.Repositories;
@@ -28,8 +29,17 @@ public sealed class SubmissionRepository
     public Task<SubmissionRow> Create(Session s, Guid userId, string taskKey) =>
         s.First<SubmissionRow>("insert into submissions (user_id, task_key) values (@userId, @taskKey) returning *", new { userId, taskKey })!;
 
-    public Task SetDetails(Session s, Guid id, string? note, string? learned, int? rating) =>
-        s.Exec("update submissions set note = @note, learned = @learned, rating = @rating, updated_at = now() where id = @id", new { id, note, learned, rating });
+    public Task SetDetails(Session s, Guid id, SaveDetailsRequest d) =>
+        s.Exec(
+            """
+            update submissions set
+              note = case when @setNote then @note else note end,
+              learned = case when @setLearned then @learned else learned end,
+              rating = case when @setRating then @rating else rating end,
+              updated_at = now()
+            where id = @id
+            """,
+            new { id, note = d.Note, learned = d.Learned, rating = d.Rating, setNote = d.NoteSet, setLearned = d.LearnedSet, setRating = d.RatingSet });
 
     public Task SetStatus(Session s, Guid id, string status) =>
         s.Exec(
