@@ -36,13 +36,14 @@ public sealed class OpenAiCompatibleClient(HttpClient http, AppOptions options) 
         {
             model = options.LlmModel,
             temperature = 0,
+            max_tokens = 1500, // bounds the cost of one answer
             response_format = new { type = "json_object" },
             messages = new object[] { new { role = "system", content = system }, new { role = "user", content = user } },
         });
 
+        var clock = Stopwatch.StartNew(); // latency covers every attempt, not just the last one
         for (var attempt = 1; ; attempt++)
         {
-            var clock = Stopwatch.StartNew();
             try
             {
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);

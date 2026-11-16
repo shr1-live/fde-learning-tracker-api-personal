@@ -20,10 +20,17 @@ public sealed class AssistantService(Db db, ILlmClient llm, PromptLibrary prompt
     public async Task<AnalysisView> Analyze(Guid userId, AnalyzeRequest req, CancellationToken ct)
     {
         if (!llm.IsConfigured) throw new ApiException(503, "The assistant is not set up yet");
-        if (await db.Read(s => calls.CountLastDay(s, userId)) >= options.LlmDailyCap)
-            throw new ApiException(429, $"Daily limit of {options.LlmDailyCap} analyses reached. Try again tomorrow.");
-
         var version = req.PromptVersion ?? PromptLibrary.DefaultVersion;
+
+        // Reserve the call before anything is sent, under a per-person lock: parallel or aborted requests still count.
+        var callId = await db.Tx(async s =>
+        {
+            await calls.LockUser(s, userId);
+            if (await calls.CountLastDay(s, userId) >= options.LlmDailyCap)
+                throw new ApiException(429, $"Daily limit of {options.LlmDailyCap} analyses reached. Try again tomorrow.");
+            return await calls.Reserve(s, userId, version);
+        });
+
         var required = SkillTools.ExtractSkills(req.JobDescription);
         LlmResult result;
         try
@@ -33,14 +40,19 @@ public sealed class AssistantService(Db db, ILlmClient llm, PromptLibrary prompt
         catch (LlmException e)
         {
             logger.LogWarning("LLM call failed: {Kind}: {Message}", e.Kind, e.Message);
-            await Log(userId, llm.Model, version, null, null, null, e.Kind);
+            await Finish(callId, llm.Model, null, null, null, e.Kind);
             throw e.Kind == "timeout" ? new ApiException(504, "The model took too long. Try again.") : new ApiException(502, "The model service is not available. Try again later.");
+        }
+        catch (OperationCanceledException)
+        {
+            await Finish(callId, llm.Model, null, null, null, "cancelled"); // the caller left; the reserved call still counts
+            throw;
         }
 
         try
         {
             var (candidates, warnings) = AnalysisParser.Parse(result.Text, req.Candidates, required);
-            await Log(userId, result.Model, version, result.InputTokens, result.OutputTokens, result.LatencyMs, "ok");
+            await Finish(callId, result.Model, result.InputTokens, result.OutputTokens, result.LatencyMs, "ok");
             return new AnalysisView
             {
                 PromptVersion = version, Model = result.Model, LatencyMs = result.LatencyMs, InputTokens = result.InputTokens, OutputTokens = result.OutputTokens,
@@ -50,13 +62,13 @@ public sealed class AssistantService(Db db, ILlmClient llm, PromptLibrary prompt
         catch (UnusableOutputException e)
         {
             logger.LogWarning("LLM answer refused: {Reason}", e.Message);
-            await Log(userId, result.Model, version, result.InputTokens, result.OutputTokens, result.LatencyMs, "invalid_output");
+            await Finish(callId, result.Model, result.InputTokens, result.OutputTokens, result.LatencyMs, "invalid_output");
             throw new ApiException(502, "The model gave an answer we could not use. Try again.");
         }
     }
 
-    Task Log(Guid userId, string? model, string version, int? inTokens, int? outTokens, int? latency, string status) =>
-        db.Read(async s => { await calls.Insert(s, userId, model, version, inTokens, outTokens, latency, status); return 0; });
+    Task Finish(long callId, string? model, int? inTokens, int? outTokens, int? latency, string status) =>
+        db.Read(async s => { await calls.Finish(s, callId, model, inTokens, outTokens, latency, status); return 0; });
 
     /// <summary>All job and candidate text is wrapped in tags with angle brackets escaped: it is data, and it cannot close a tag or fake one.</summary>
     static string BuildUserMessage(AnalyzeRequest req)
@@ -66,8 +78,10 @@ public sealed class AssistantService(Db db, ILlmClient llm, PromptLibrary prompt
         for (var i = 0; i < req.Candidates.Count; i++)
         {
             var c = req.Candidates[i];
-            sb.AppendLine($"<candidate id=\"{i + 1}\" name=\"{PromptText.Escape(c.Name).Replace('"', '\'')}\">").AppendLine(PromptText.Escape(c.Profile)).AppendLine("</candidate>");
+            sb.AppendLine($"<candidate id=\"{i + 1}\" name=\"{OneLine(PromptText.Escape(c.Name)).Replace('"', '\'')}\">").AppendLine(PromptText.Escape(c.Profile)).AppendLine("</candidate>");
         }
         return sb.ToString();
     }
+
+    static string OneLine(string s) => System.Text.RegularExpressions.Regex.Replace(s, @"\s+", " ").Trim();
 }

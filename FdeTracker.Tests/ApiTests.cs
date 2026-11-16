@@ -323,4 +323,29 @@ public sealed class ApiTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(20, (int)usage["used_today"]!);
         Assert.Equal(20, (int)usage["daily_cap"]!);
     }
+
+    [Fact]
+    public async Task T21_sneaky_input_shapes_are_rejected_before_the_model()
+    {
+        var calls = api.Llm.Calls;
+        Assert.Equal(400, (await api.Call("POST", "/api/assistant/analyze", E, Req(version: "v3\n"))).Status); // trailing newline
+        Assert.Equal(400, (await api.Call("POST", "/api/assistant/analyze", E, new { job_description = Job, candidates = new object?[] { null } })).Status);
+        Assert.Equal(400, (await api.Call("POST", "/api/content", B, new { topic = "rag\n", stack_id = (string?)null, kind = "note", title = "Valid title", body_md = "x" })).Status);
+        Assert.Equal(calls, api.Llm.Calls);
+    }
+
+    [Fact]
+    public async Task T22_a_real_quote_about_a_different_skill_does_not_prove_the_skill()
+    {
+        api.Llm.Handler = (_, _) => Answer("""
+            {"candidates":[{"id":1,"summary":"x","fit":"partial","not_stated":[],"gaps":[],
+              "matched_skills":[{"skill":"Kubernetes","evidence":"Deployed services with Docker on AWS"},
+                                {"skill":"Docker","evidence":"Deployed services with Docker on AWS"}]}]}
+            """);
+        var r = await api.Call("POST", "/api/assistant/analyze", E, Req());
+        Assert.Equal(200, r.Status);
+        var skills = r.Body["candidates"]![0]!["matched_skills"]!.AsArray().Select(x => (string)x!["skill"]!).ToArray();
+        Assert.Equal(new[] { "Docker" }, skills);
+        Assert.Contains("removed", (string)r.Body["warnings"]![0]!);
+    }
 }

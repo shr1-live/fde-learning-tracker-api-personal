@@ -9,7 +9,7 @@ namespace FdeTracker.Api.Controllers;
 [Route("api/programs"), RequireApproved]
 public sealed class ProgramsController(ProgramService programs) : ApiControllerBase
 {
-    const string SlugPattern = "^[a-z0-9-]{2,60}$";
+    const string SlugPattern = "^[a-z0-9-]{2,60}\\z";
 
     [HttpGet]
     public async Task<IActionResult> List() => Ok(await programs.List(CurrentUser.Id));

@@ -17,9 +17,11 @@ public static partial class AnalysisParser
 
     public static (List<CandidateAnalysisView> Candidates, List<string> Warnings) Parse(string raw, IReadOnlyList<CandidateInput> input, List<string> requiredSkills)
     {
-        JsonElement root;
-        try { root = JsonDocument.Parse(StripFences(raw)).RootElement; }
+        JsonDocument doc;
+        try { doc = JsonDocument.Parse(StripFences(raw)); }
         catch (JsonException) { throw new UnusableOutputException("Not valid JSON"); }
+        using var _ = doc;
+        var root = doc.RootElement;
         if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("candidates", out var list) || list.ValueKind != JsonValueKind.Array)
             throw new UnusableOutputException("Missing candidates list");
 
@@ -27,7 +29,8 @@ public static partial class AnalysisParser
         var byId = new Dictionary<int, CandidateAnalysisView>();
         foreach (var item in list.EnumerateArray())
         {
-            if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty("id", out var idEl) || !idEl.TryGetInt32(out var id) || id < 1 || id > input.Count || byId.ContainsKey(id)) continue;
+            if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty("id", out var idEl) || !idEl.TryGetInt32(out var id) || id < 1 || id > input.Count) { warnings.Add("An entry with an unknown candidate id was ignored."); continue; }
+            if (byId.ContainsKey(id)) { warnings.Add($"{input[id - 1].Name}: a second analysis for the same candidate was ignored."); continue; }
             var profile = input[id - 1].Profile;
             var removed = 0;
             var matched = new List<MatchedSkillView>();
@@ -36,7 +39,7 @@ public static partial class AnalysisParser
                 var skill = Text(m, "skill", 80);
                 var evidence = Text(m, "evidence", 300);
                 if (skill.Length == 0) continue;
-                if (IsQuoted(evidence, profile)) matched.Add(new MatchedSkillView { Skill = skill, Evidence = evidence });
+                if (IsQuoted(evidence, profile) && Supports(skill, evidence)) matched.Add(new MatchedSkillView { Skill = skill, Evidence = evidence });
                 else removed++;
             }
             if (removed > 0) warnings.Add($"{input[id - 1].Name}: {removed} claim(s) removed because the quoted evidence is not in the profile.");
@@ -59,13 +62,17 @@ public static partial class AnalysisParser
         return (byId.OrderBy(kv => kv.Key).Select(kv => kv.Value).ToList(), warnings);
     }
 
-    /// <summary>The quote must be at least 4 characters and appear in the profile (ignoring case and spacing). The profile reaches the model with &lt; and &gt; escaped, so that spelling is accepted too.</summary>
+    /// <summary>The quote must be at least 8 characters and appear in the profile (ignoring case and spacing). The profile reaches the model with &lt; and &gt; escaped, so that spelling is accepted too.</summary>
     static bool IsQuoted(string evidence, string profile)
     {
         var e = Normalize(evidence);
-        if (e.Length < 4) return false;
+        if (e.Length < 8) return false;
         return Normalize(profile).Contains(e, StringComparison.Ordinal) || Normalize(PromptText.Escape(profile)).Contains(e, StringComparison.Ordinal);
     }
+
+    /// <summary>For skills we know, the quote must mention that skill ("Kubernetes" cannot be backed by a quote about Docker). Other skills only need a real quote.</summary>
+    static bool Supports(string skill, string evidence) =>
+        !SkillTools.IsKnownSkill(skill) || SkillTools.ExtractSkills(evidence).Contains(skill, StringComparer.OrdinalIgnoreCase);
 
     static string Normalize(string s) => Spaces().Replace(s, " ").Trim().ToLowerInvariant();
     static string StripFences(string s) => Fence().Replace(s.Trim(), "").Trim();
@@ -86,7 +93,7 @@ public static partial class AnalysisParser
             : [];
 
     [GeneratedRegex(@"\s+")] private static partial Regex Spaces();
-    [GeneratedRegex(@"^```[a-zA-Z]*\s*|\s*```$")] private static partial Regex Fence();
+    [GeneratedRegex(@"^```[a-zA-Z]*\s*|\s*```\z")] private static partial Regex Fence();
 }
 
 /// <summary>Candidate and job text is data. It is wrapped in tags and its angle brackets are escaped so it cannot close a tag or open a fake one.</summary>

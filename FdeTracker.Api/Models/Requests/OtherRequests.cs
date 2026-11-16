@@ -13,18 +13,18 @@ public sealed class UpdateMeRequest
 
 public sealed class SetAccessRequest
 {
-    [Required, RegularExpression("^(approved|rejected|pending)$")] public string Status { get; set; } = "";
+    [Required, RegularExpression("^(approved|rejected|pending)\\z")] public string Status { get; set; } = "";
 }
 
 public sealed class SetRoleRequest
 {
-    [Required, RegularExpression("^(member|reviewer)$")] public string Role { get; set; } = "";
+    [Required, RegularExpression("^(member|reviewer)\\z")] public string Role { get; set; } = "";
 }
 
 public sealed class ReviewDecisionRequest
 {
     string? _comment;
-    [Required, RegularExpression("^(approve|request_changes|reject)$")] public string Decision { get; set; } = "";
+    [Required, RegularExpression("^(approve|request_changes|reject)\\z")] public string Decision { get; set; } = "";
     [StringLength(2000)] public string? Comment { get => _comment; set => _comment = string.IsNullOrWhiteSpace(value) ? null : value.Trim(); }
 }
 

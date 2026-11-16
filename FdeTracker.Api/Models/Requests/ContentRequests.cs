@@ -42,7 +42,7 @@ public sealed class PatchContentRequest
 public sealed class FeedQuery
 {
     [RegularExpression(ContentPatterns.Topic)] public string? Topic { get; set; }
-    [RegularExpression("^(general|dotnet|node|java|python)$")] public string? Stack { get; set; }
+    [RegularExpression("^(general|dotnet|node|java|python)\\z")] public string? Stack { get; set; }
     [Range(1, 30)] public int Limit { get; set; } = 15;
     [StringLength(120)] public string? Before { get; set; }
 }
