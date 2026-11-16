@@ -17,6 +17,16 @@ public static partial class AnalysisParser
 
     public static (List<CandidateAnalysisView> Candidates, List<string> Warnings) Parse(string raw, IReadOnlyList<CandidateInput> input, List<string> requiredSkills)
     {
+        try { return ParseCore(raw, input, requiredSkills); }
+        catch (Exception e) when (e is InvalidOperationException or KeyNotFoundException or FormatException or ArgumentException)
+        {
+            // A model can answer in any shape. Whatever it sends, the caller gets "unusable answer", never a crash.
+            throw new UnusableOutputException("Unexpected shape");
+        }
+    }
+
+    static (List<CandidateAnalysisView> Candidates, List<string> Warnings) ParseCore(string raw, IReadOnlyList<CandidateInput> input, List<string> requiredSkills)
+    {
         var text = Fence().Replace(raw.Trim(), "").Trim();
         // Some models add words around the JSON, so look for the object that holds the answer.
         var doc = TryParse(text) ?? FindAnswerObject(text) ?? throw new UnusableOutputException("Not valid JSON");
@@ -29,7 +39,7 @@ public static partial class AnalysisParser
         var byId = new Dictionary<int, CandidateAnalysisView>();
         foreach (var item in list.EnumerateArray())
         {
-            if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty("id", out var idEl) || !idEl.TryGetInt32(out var id) || id < 1 || id > input.Count)
+            if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty("id", out var idEl) || !TryReadId(idEl, out var id) || id < 1 || id > input.Count)
             {
                 warnings.Add("An entry with an unknown candidate id was ignored.");
                 continue;
@@ -94,6 +104,18 @@ public static partial class AnalysisParser
         !SkillTools.IsKnownSkill(skill) || SkillTools.ExtractSkills(evidence).Contains(skill, StringComparer.OrdinalIgnoreCase);
 
     static string Normalize(string s) => Spaces().Replace(s, " ").Trim().ToLowerInvariant();
+    /// <summary>The id as a number. Some models write it as text ("1"); that is accepted. Anything else is not an id.</summary>
+    static bool TryReadId(JsonElement e, out int id)
+    {
+        id = 0;
+        return e.ValueKind switch
+        {
+            JsonValueKind.Number => e.TryGetInt32(out id),
+            JsonValueKind.String => int.TryParse(e.GetString(), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out id),
+            _ => false,
+        };
+    }
+
     static JsonDocument? TryParse(string s)
     {
         try { return JsonDocument.Parse(s); }
@@ -156,4 +178,20 @@ public static partial class AnalysisParser
 public static class PromptText
 {
     public static string Escape(string s) => s.Replace("<", "&lt;").Replace(">", "&gt;");
+
+    /// <summary>The user message for an analysis: the job and each candidate in tags, all text escaped.</summary>
+    public static string UserMessage(string jobDescription, IReadOnlyList<CandidateInput> candidates)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("<job_description>").AppendLine(Escape(jobDescription)).AppendLine("</job_description>");
+        for (var i = 0; i < candidates.Count; i++)
+        {
+            var c = candidates[i];
+            var name = OneLine(Escape(c.Name)).Replace('"', '\'');
+            sb.AppendLine($"<candidate id=\"{i + 1}\" name=\"{name}\">").AppendLine(Escape(c.Profile)).AppendLine("</candidate>");
+        }
+        return sb.ToString();
+    }
+
+    static string OneLine(string s) => System.Text.RegularExpressions.Regex.Replace(s, @"\s+", " ").Trim();
 }

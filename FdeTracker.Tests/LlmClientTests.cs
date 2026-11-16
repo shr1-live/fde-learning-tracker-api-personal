@@ -172,4 +172,17 @@ public sealed class LlmClientTests
         var (c, _) = AnalysisParser.Parse("Here is the {analysis}: " + json + " (see {above})", people, ["Python"]);
         Assert.Single(c[0].MatchedSkills);
     }
+
+    [Fact]
+    public void A_candidate_id_written_as_text_is_accepted_and_odd_shapes_never_crash()
+    {
+        var people = new List<CandidateInput> { new() { Name = "Asha", Profile = "Built REST APIs in Python for three years and used Docker." } };
+        string Answer(string id) => "{\"candidates\":[{\"id\":" + id + ",\"summary\":\"ok\",\"fit\":\"strong\",\"matched_skills\":[{\"skill\":\"Python\",\"evidence\":\"Built REST APIs in Python\"}],\"gaps\":[],\"not_stated\":[]}]}";
+        Assert.Single(AnalysisParser.Parse(Answer("\"1\""), people, ["Python"]).Candidates);   // "1" as text
+        Assert.Single(AnalysisParser.Parse(Answer("1"), people, ["Python"]).Candidates);        // 1 as a number
+        foreach (var odd in new[] { "true", "null", "[1]", "{\"a\":1}", "\"x\"", "1.5" })
+            Assert.Throws<UnusableOutputException>(() => AnalysisParser.Parse(Answer(odd), people, ["Python"])); // an id that is not an id: no usable candidate
+        Assert.Throws<UnusableOutputException>(() => AnalysisParser.Parse("{\"candidates\":[1,\"two\",null]}", people, ["Python"]));
+        Assert.Throws<UnusableOutputException>(() => AnalysisParser.Parse("[]", people, ["Python"]));
+    }
 }

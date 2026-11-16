@@ -33,8 +33,19 @@ switch (command)
         File.WriteAllText(md, Report.Day1(results, names, set, label));
         Console.WriteLine($"\nWrote {md}\nWrote {json}");
         break;
+    case "day2":
+        var day2Targets = Targets.Load(targetsPath, only);
+        if (day2Targets.Count == 0) { Console.Error.WriteLine("No model can run. Check evals/targets.json and the key environment variables."); return 1; }
+        var cases = JsonSerializer.Deserialize<Day2Cases>(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "evals", "day2-cases.json")))!;
+        var rows = await Day2Runner.Run(cases, day2Targets, timeout);
+        var json2 = Path.Combine(outDir, $"day2-{label}-results.json");
+        var md2 = Path.Combine(outDir, $"day2-{label}-comparison.md");
+        File.WriteAllText(json2, JsonSerializer.Serialize(rows, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(md2, Day2Report.Make(rows, cases, label));
+        Console.WriteLine($"\nWrote {md2}\nWrote {json2}");
+        break;
     default:
-        Console.Error.WriteLine($"Unknown command '{command}'. Available: day1");
+        Console.Error.WriteLine($"Unknown command '{command}'. Available: day1, day2");
         return 1;
 }
 return 0;

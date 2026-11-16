@@ -71,17 +71,5 @@ public sealed class AssistantService(Db db, ILlmClient llm, PromptLibrary prompt
         db.Read(async s => { await calls.Finish(s, callId, model, inTokens, outTokens, latency, status); return 0; });
 
     /// <summary>All job and candidate text is wrapped in tags with angle brackets escaped: it is data, and it cannot close a tag or fake one.</summary>
-    static string BuildUserMessage(AnalyzeRequest req)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine("<job_description>").AppendLine(PromptText.Escape(req.JobDescription)).AppendLine("</job_description>");
-        for (var i = 0; i < req.Candidates.Count; i++)
-        {
-            var c = req.Candidates[i];
-            sb.AppendLine($"<candidate id=\"{i + 1}\" name=\"{OneLine(PromptText.Escape(c.Name)).Replace('"', '\'')}\">").AppendLine(PromptText.Escape(c.Profile)).AppendLine("</candidate>");
-        }
-        return sb.ToString();
-    }
-
-    static string OneLine(string s) => System.Text.RegularExpressions.Regex.Replace(s, @"\s+", " ").Trim();
+    static string BuildUserMessage(AnalyzeRequest req) => PromptText.UserMessage(req.JobDescription, req.Candidates);
 }
