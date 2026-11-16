@@ -15,8 +15,15 @@ public sealed class AppOptions
     public string? LlmBaseUrl { get; init; }
     public string? LlmApiKey { get; init; }
     public string? LlmModel { get; init; }
+    public string LlmProvider { get; init; } = "openai"; // "openai" = any chat-completions provider, "anthropic" = Claude
     public int LlmDailyCap { get; init; } = 20;
     public int LlmTimeoutSeconds { get; init; } = 30;
+
+    static string ProviderOf(string? value)
+    {
+        var p = (value ?? "openai").ToLowerInvariant();
+        return p is "openai" or "anthropic" ? p : throw new InvalidOperationException("LLM_PROVIDER must be openai or anthropic");
+    }
 
     public static AppOptions From(IConfiguration c)
     {
@@ -35,6 +42,7 @@ public sealed class AppOptions
             LlmBaseUrl = Opt("LLM_BASE_URL"),
             LlmApiKey = Opt("LLM_API_KEY"),
             LlmModel = Opt("LLM_MODEL"),
+            LlmProvider = ProviderOf(Opt("LLM_PROVIDER")),
             LlmDailyCap = Num("LLM_DAILY_CAP", 20),
             LlmTimeoutSeconds = Num("LLM_TIMEOUT_SECONDS", 30),
         };

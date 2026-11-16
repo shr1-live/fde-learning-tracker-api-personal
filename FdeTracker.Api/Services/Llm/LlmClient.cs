@@ -21,26 +21,23 @@ public interface ILlmClient
     Task<LlmResult> CompleteAsync(string system, string user, CancellationToken ct);
 }
 
-/// <summary>Talks to any provider that offers the common /chat/completions API (Gemini, Groq, GitHub Models, Ollama, OpenAI...). Settings come only from environment variables.</summary>
-public sealed class OpenAiCompatibleClient(HttpClient http, AppOptions options) : ILlmClient
+/// <summary>
+/// Shared plumbing for HTTP model providers: timeout, retry on 429/5xx/network errors, latency across all attempts.
+/// A provider only says how to build its request and how to read its answer.
+/// </summary>
+public abstract class HttpLlmClient(HttpClient http, AppOptions options) : ILlmClient
 {
     const int MaxAttempts = 3;
 
-    public bool IsConfigured => options.LlmBaseUrl is not null && options.LlmApiKey is not null && options.LlmModel is not null;
+    protected AppOptions Options => options;
+    public abstract bool IsConfigured { get; }
     public string? Model => options.LlmModel;
+
+    protected abstract HttpRequestMessage BuildRequest(string system, string user);
+    protected abstract LlmResult Parse(string json, int latencyMs);
 
     public async Task<LlmResult> CompleteAsync(string system, string user, CancellationToken ct)
     {
-        var url = options.LlmBaseUrl!.TrimEnd('/') + "/chat/completions";
-        var body = JsonSerializer.Serialize(new
-        {
-            model = options.LlmModel,
-            temperature = 0,
-            max_tokens = 1500, // bounds the cost of one answer
-            response_format = new { type = "json_object" },
-            messages = new object[] { new { role = "system", content = system }, new { role = "user", content = user } },
-        });
-
         var clock = Stopwatch.StartNew(); // latency covers every attempt, not just the last one
         for (var attempt = 1; ; attempt++)
         {
@@ -48,13 +45,12 @@ public sealed class OpenAiCompatibleClient(HttpClient http, AppOptions options) 
             {
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 timeout.CancelAfter(TimeSpan.FromSeconds(options.LlmTimeoutSeconds));
-                using var req = new HttpRequestMessage(HttpMethod.Post, url) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
-                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.LlmApiKey);
+                using var req = BuildRequest(system, user);
                 using var res = await http.SendAsync(req, timeout.Token);
                 var text = await res.Content.ReadAsStringAsync(timeout.Token);
                 var code = (int)res.StatusCode;
                 if (res.IsSuccessStatusCode) return Parse(text, (int)clock.ElapsedMilliseconds);
-                if (attempt < MaxAttempts && (code == 429 || code >= 500)) { await Task.Delay(TimeSpan.FromSeconds(attempt), ct); continue; }
+                if (attempt < MaxAttempts && (code == 429 || code >= 500)) { await Task.Delay(RetryDelay(attempt), ct); continue; }
                 throw new LlmException("provider_error", $"The provider answered {code}");
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
@@ -63,13 +59,39 @@ public sealed class OpenAiCompatibleClient(HttpClient http, AppOptions options) 
             }
             catch (HttpRequestException)
             {
-                if (attempt < MaxAttempts) { await Task.Delay(TimeSpan.FromSeconds(attempt), ct); continue; }
+                if (attempt < MaxAttempts) { await Task.Delay(RetryDelay(attempt), ct); continue; }
                 throw new LlmException("provider_error", "Could not reach the provider");
             }
         }
     }
 
-    LlmResult Parse(string json, int latencyMs)
+    /// <summary>Seconds to wait before the next try. Overridable so tests do not sleep.</summary>
+    protected virtual TimeSpan RetryDelay(int attempt) => TimeSpan.FromSeconds(attempt);
+
+    protected static LlmException BadFormat() => new("provider_error", "The provider's answer was not in the expected format");
+}
+
+/// <summary>Any provider with the common /chat/completions API (Gemini, Groq, GitHub Models, Ollama, OpenAI...).</summary>
+public sealed class OpenAiCompatibleClient(HttpClient http, AppOptions options) : HttpLlmClient(http, options)
+{
+    public override bool IsConfigured => Options.LlmBaseUrl is not null && Options.LlmApiKey is not null && Options.LlmModel is not null;
+
+    protected override HttpRequestMessage BuildRequest(string system, string user)
+    {
+        var body = JsonSerializer.Serialize(new
+        {
+            model = Options.LlmModel,
+            temperature = 0,
+            max_tokens = 1500, // bounds the cost of one answer
+            response_format = new { type = "json_object" },
+            messages = new object[] { new { role = "system", content = system }, new { role = "user", content = user } },
+        });
+        var req = new HttpRequestMessage(HttpMethod.Post, Options.LlmBaseUrl!.TrimEnd('/') + "/chat/completions") { Content = new StringContent(body, Encoding.UTF8, "application/json") };
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Options.LlmApiKey);
+        return req;
+    }
+
+    protected override LlmResult Parse(string json, int latencyMs)
     {
         try
         {
@@ -77,12 +99,9 @@ public sealed class OpenAiCompatibleClient(HttpClient http, AppOptions options) 
             var root = doc.RootElement;
             var content = root.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "";
             int Tokens(string name) => root.TryGetProperty("usage", out var u) && u.TryGetProperty(name, out var t) && t.TryGetInt32(out var n) ? n : 0;
-            var model = root.TryGetProperty("model", out var m) && m.GetString() is { Length: > 0 } s ? s : options.LlmModel!;
+            var model = root.TryGetProperty("model", out var m) && m.GetString() is { Length: > 0 } s ? s : Options.LlmModel!;
             return new LlmResult(content, Tokens("prompt_tokens"), Tokens("completion_tokens"), latencyMs, model);
         }
-        catch (Exception e) when (e is JsonException or KeyNotFoundException or InvalidOperationException or IndexOutOfRangeException)
-        {
-            throw new LlmException("provider_error", "The provider's answer was not in the expected format");
-        }
+        catch (Exception e) when (e is JsonException or KeyNotFoundException or InvalidOperationException or IndexOutOfRangeException) { throw BadFormat(); }
     }
 }

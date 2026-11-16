@@ -11,6 +11,8 @@ public sealed class PromptCase
     [JsonPropertyName("kind")] public string Kind { get; set; } = "";
     [JsonPropertyName("prompt")] public string Prompt { get; set; } = "";
     [JsonPropertyName("expect_any")] public string[]? ExpectAny { get; set; }
+    [JsonPropertyName("expect_all")] public string[]? ExpectAll { get; set; }
+    [JsonPropertyName("expect_none")] public string[]? ExpectNone { get; set; }
     [JsonPropertyName("expect_regex")] public string? ExpectRegex { get; set; }
     [JsonPropertyName("max_words")] public int? MaxWords { get; set; }
     [JsonPropertyName("min_question_marks")] public int? MinQuestionMarks { get; set; }
@@ -18,6 +20,7 @@ public sealed class PromptCase
 
 public sealed class PromptSet
 {
+    [JsonPropertyName("version")] public int Version { get; set; } = 1;
     [JsonPropertyName("system")] public string System { get; set; } = "";
     [JsonPropertyName("cases")] public List<PromptCase> Cases { get; set; } = [];
 }
@@ -34,7 +37,7 @@ public static class Day1Runner
         foreach (var target in targets)
         {
             var model = target.Name; // results are labelled with the target name
-            var client = new OpenAiCompatibleClient(http, new AppOptions { LlmBaseUrl = target.BaseUrl, LlmApiKey = target.ApiKey, LlmModel = target.Model, LlmTimeoutSeconds = timeoutSeconds });
+            var client = LlmClientFactory.Create(target.Provider, http, new AppOptions { LlmProvider = target.Provider, LlmBaseUrl = string.IsNullOrWhiteSpace(target.BaseUrl) ? null : target.BaseUrl, LlmApiKey = target.ApiKey, LlmModel = target.Model, LlmTimeoutSeconds = timeoutSeconds });
             foreach (var c in set.Cases)
             {
                 Console.Write($"{model,-14} {c.Id,-20} ");
@@ -74,6 +77,8 @@ public static class Day1Runner
     {
         var lower = answer.ToLowerInvariant();
         if (c.ExpectAny is { Length: > 0 } && !c.ExpectAny.Any(e => lower.Contains(e.ToLowerInvariant()))) return false;
+        if (c.ExpectAll is { Length: > 0 } && !c.ExpectAll.All(e => lower.Contains(e.ToLowerInvariant()))) return false;
+        if (c.ExpectNone is { Length: > 0 } && c.ExpectNone.Any(e => lower.Contains(e.ToLowerInvariant()))) return false;
         if (c.ExpectRegex is { } rx && !System.Text.RegularExpressions.Regex.IsMatch(answer, rx, System.Text.RegularExpressions.RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1))) return false;
         if (c.MaxWords is { } max && answer.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length > max) return false;
         if (c.MinQuestionMarks is { } q && answer.Count(ch => ch == '?') < q) return false;

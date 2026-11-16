@@ -34,7 +34,12 @@ builder.Services.AddSingleton<ReviewRepository>();
 builder.Services.AddSingleton<ProgramRepository>();
 builder.Services.AddSingleton<LlmCallRepository>();
 builder.Services.AddSingleton<PromptLibrary>();
-builder.Services.AddSingleton<ILlmClient>(sp => new OpenAiCompatibleClient(new HttpClient(new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(5) }) { Timeout = Timeout.InfiniteTimeSpan }, sp.GetRequiredService<AppOptions>()));
+builder.Services.AddSingleton<ILlmClient>(sp =>
+{
+    var opts = sp.GetRequiredService<AppOptions>();
+    var http = new HttpClient(new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(5) }) { Timeout = Timeout.InfiniteTimeSpan };
+    return LlmClientFactory.Create(opts.LlmProvider, http, opts);
+});
 builder.Services.AddSingleton<UserService>();
 builder.Services.AddSingleton<ContentService>();
 builder.Services.AddSingleton<ReviewService>();

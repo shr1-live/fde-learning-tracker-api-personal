@@ -10,9 +10,11 @@ public sealed class Target
     [JsonPropertyName("base_url")] public string BaseUrl { get; set; } = "";
     [JsonPropertyName("model")] public string Model { get; set; } = "";
     [JsonPropertyName("api_key_env")] public string? ApiKeyEnv { get; set; }
+    /// <summary>"openai" (default) = any chat-completions provider; "anthropic" = Claude.</summary>
+    [JsonPropertyName("provider")] public string Provider { get; set; } = "openai";
 }
 
-public sealed record ResolvedTarget(string Name, string BaseUrl, string Model, string ApiKey);
+public sealed record ResolvedTarget(string Name, string BaseUrl, string Model, string ApiKey, string Provider);
 
 public static class Targets
 {
@@ -39,7 +41,7 @@ public static class Targets
                 Console.WriteLine($"Skipping {t.Name}: set the environment variable {t.ApiKeyEnv ?? "(api_key_env missing)"} to include it.");
                 continue;
             }
-            run.Add(new ResolvedTarget(t.Name, t.BaseUrl, t.Model, string.IsNullOrWhiteSpace(key) ? "local" : key));
+            run.Add(new ResolvedTarget(t.Name, t.BaseUrl, t.Model, string.IsNullOrWhiteSpace(key) ? "local" : key, t.Provider.ToLowerInvariant()));
         }
         return run;
     }

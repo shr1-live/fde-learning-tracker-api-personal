@@ -75,7 +75,14 @@ public static partial class AnalysisParser
         !SkillTools.IsKnownSkill(skill) || SkillTools.ExtractSkills(evidence).Contains(skill, StringComparer.OrdinalIgnoreCase);
 
     static string Normalize(string s) => Spaces().Replace(s, " ").Trim().ToLowerInvariant();
-    static string StripFences(string s) => Fence().Replace(s.Trim(), "").Trim();
+    /// <summary>Drops code fences, then keeps from the first { to the last }: some models add a sentence before or after the JSON.</summary>
+    static string StripFences(string s)
+    {
+        var t = Fence().Replace(s.Trim(), "").Trim();
+        var start = t.IndexOf('{');
+        var end = t.LastIndexOf('}');
+        return start >= 0 && end > start ? t[start..(end + 1)] : t;
+    }
 
     static IEnumerable<JsonElement> Array(JsonElement o, string name) =>
         o.TryGetProperty(name, out var a) && a.ValueKind == JsonValueKind.Array ? a.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.Object).Take(20) : [];
