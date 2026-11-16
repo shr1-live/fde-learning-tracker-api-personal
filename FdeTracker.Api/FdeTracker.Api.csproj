@@ -20,4 +20,9 @@
     <Content Include="..\migrations\*.sql" Link="migrations\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Prompt versions ship next to the binary so they can be compared and reviewed as files. -->
+    <Content Include="Prompts\*.md" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

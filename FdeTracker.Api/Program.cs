@@ -6,6 +6,7 @@ using FdeTracker.Api.Data;
 using FdeTracker.Api.Middleware;
 using FdeTracker.Api.Repositories;
 using FdeTracker.Api.Services;
+using FdeTracker.Api.Services.Llm;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
@@ -31,10 +32,14 @@ builder.Services.AddSingleton<AuditRepository>();
 builder.Services.AddSingleton<ContentRepository>();
 builder.Services.AddSingleton<ReviewRepository>();
 builder.Services.AddSingleton<ProgramRepository>();
+builder.Services.AddSingleton<LlmCallRepository>();
+builder.Services.AddSingleton<PromptLibrary>();
+builder.Services.AddSingleton<ILlmClient>(sp => new OpenAiCompatibleClient(new HttpClient(), sp.GetRequiredService<AppOptions>()));
 builder.Services.AddSingleton<UserService>();
 builder.Services.AddSingleton<ContentService>();
 builder.Services.AddSingleton<ReviewService>();
 builder.Services.AddSingleton<ProgramService>();
+builder.Services.AddSingleton<AssistantService>();
 
 // ---- controllers and JSON (snake_case on the wire, unknown fields refused)
 builder.Services.AddControllers()
