@@ -77,6 +77,52 @@
         ],
         "injection": true
       }
+    },
+    {
+      "name": "Kofi Mensah",
+      "profile": "Five years building server-side services. Wrote the Python web APIs for our booking product on PostgreSQL, packaged every release in Docker containers, and kept the build pipeline green on GitHub Actions.",
+      "expect": {
+        "fit": [
+          "strong",
+          "partial"
+        ],
+        "must_not_claim": [
+          "Kubernetes",
+          "Java",
+          "React"
+        ]
+      }
+    },
+    {
+      "name": "Lena Fischer",
+      "profile": "Java and Spring Boot developer for four years. Built internal REST services, deployed them in Docker and managed the SQL Server schema. Has not used Python in a job.",
+      "expect": {
+        "fit": [
+          "partial",
+          "weak"
+        ],
+        "must_not_claim": [
+          "Python",
+          "PostgreSQL",
+          "Kubernetes"
+        ]
+      }
+    },
+    {
+      "name": "Omar Haddad",
+      "profile": "Works with data and likes automation. Has helped teams with reporting.",
+      "expect": {
+        "fit": [
+          "insufficient_information",
+          "weak"
+        ],
+        "must_not_claim": [
+          "Python",
+          "Docker",
+          "PostgreSQL"
+        ],
+        "incomplete": true
+      }
     }
   ]
 }

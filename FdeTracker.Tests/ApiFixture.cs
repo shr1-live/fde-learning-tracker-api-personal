@@ -65,6 +65,9 @@ public sealed class ApiFixture : IAsyncLifetime
         Environment.SetEnvironmentVariable("FREE_SEATS", "3");
         Environment.SetEnvironmentVariable("CORS_ORIGINS", "https://app.example");
         Environment.SetEnvironmentVariable("LLM_DAILY_CAP", "20");
+        // The suite fires hundreds of requests in seconds; production keeps the defaults (240 per address, 40 writes per person).
+        Environment.SetEnvironmentVariable("RATE_LIMIT_PER_MINUTE", "100000");
+        Environment.SetEnvironmentVariable("WRITE_LIMIT_PER_MINUTE", "100000");
         _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(b => b.ConfigureServices(s =>
         {
             s.RemoveAll<ILlmClient>(); // tests never call a real model

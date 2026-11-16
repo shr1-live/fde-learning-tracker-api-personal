@@ -19,6 +19,8 @@ public sealed class AppOptions
     public int LlmDailyCap { get; init; } = 20;
     public int LlmTimeoutSeconds { get; init; } = 30;
     public int LlmRetryDelayMs { get; init; } = 1000;
+    public int RateLimitPerMinute { get; init; } = 240; // all requests per address
+    public int WriteLimitPerMinute { get; init; } = 40; // changes per person
     public int LlmMaxTokens { get; init; } = 3000; // longest answer we pay for; raise it if several candidates get cut off
 
     static string ProviderOf(string? value)
@@ -50,6 +52,8 @@ public sealed class AppOptions
             LlmTimeoutSeconds = Num("LLM_TIMEOUT_SECONDS", 30),
             LlmRetryDelayMs = Num("LLM_RETRY_DELAY_MS", 1000),
             LlmMaxTokens = Num("LLM_MAX_TOKENS", 3000),
+            RateLimitPerMinute = Num("RATE_LIMIT_PER_MINUTE", 240),
+            WriteLimitPerMinute = Num("WRITE_LIMIT_PER_MINUTE", 40),
         };
     }
 }
