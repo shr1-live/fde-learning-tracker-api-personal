@@ -98,6 +98,15 @@ dotnet run --project FdeTracker.Evals -- day2    # every prompt version on the s
 
 Results and generated reports are written to `docs/evals/`. The frontend's Week 1 report page reads the same results files.
 
+## Submissions and review
+
+A person hands in a task (for example a Week 1 day) with **proof**, and reviewers approve it or send it back.
+
+- **Proof:** https links, or files (PNG, JPG, GIF, WebP, PDF, plain text or ZIP, up to 2 MB each, 8 per submission, 20 MB per person). Files are stored in the database and identified by their own bytes, never by their name or the type the browser claims; names are cleaned; downloads are served as attachments (images inline) with a sandbox policy and `nosniff`.
+- **Lifecycle:** draft, then submitted, then approved or changes requested. After changes are requested the person edits and submits again. Every decision and comment is kept.
+- **Roles:** a member sees and edits only their own work. Reviewers and admins see everyone's submitted work (never drafts) and decide on it; a reviewer cannot decide on their own work. A file can be downloaded by its owner and, once submitted, by reviewers and admins; for anyone else it does not exist.
+- **Safety:** changes are serialised per person (so parallel uploads cannot pass the storage cap), only the upload route may carry more than 64 KB, and every action is written to the audit log.
+
 ## Tests
 
 `dotnet test` runs the integration tests against a throwaway Postgres in Docker (Docker must be running) and the client tests against a fake HTTP layer (no network, no key, no cost). The model is always scripted in tests.
@@ -136,4 +145,11 @@ dotnet test        # needs Docker running: starts a throwaway Postgres
 | PUT | `/api/programs/{slug}/items/{id}/progress` | approved |
 | GET | `/api/assistant/usage` | approved |
 | POST | `/api/assistant/analyze` | approved, daily cap |
+| GET | `/api/submissions` | approved (own) |
+| GET / PUT | `/api/submissions/{taskKey}` | approved (own) |
+| POST | `/api/submissions/{taskKey}/links`, `/files`, `/submit` | approved (own) |
+| DELETE | `/api/submissions/{taskKey}/items/{id}` | approved (own) |
+| GET | `/api/submissions/items/{id}/file` | owner; reviewers and admins once submitted |
+| GET | `/api/review/submissions[?status=]`, `/counts`, `/{id}` | reviewer, admin |
+| POST | `/api/review/submissions/{id}` | reviewer, admin (not for their own work) |
 | GET / POST | `/api/admin/users`, `/api/admin/users/{id}/access`, `/api/admin/users/{id}/role` | admin |

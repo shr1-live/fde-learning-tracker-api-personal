@@ -52,7 +52,7 @@ Criteria: consistent output structure (enforced and validated), prompt versions 
 
 ### Day 5: end to end
 
-Working flow from the Assistant page to the model and back, with validated input and output, two plain functions used by the service (find skills, score a match), clear failure messages, usage and latency logging, a daily cap per person, 40 automated tests, a README section, `docs/DEMO.md`, and this report.
+Working flow from the Assistant page to the model and back, with validated input and output, two plain functions used by the service (find skills, score a match), clear failure messages, usage and latency logging, a daily cap per person, 53 automated tests, a README section, `docs/DEMO.md`, and this report.
 
 ## 3. What testing found
 
@@ -65,6 +65,10 @@ Working flow from the Assistant page to the model and back, with validated input
 ## 4. Security notes
 
 Input is validated and limited; a rating needs at least one claim backed by a real quote (a hidden instruction cannot raise it on its own); job and candidate text is wrapped in tags with angle brackets escaped and is described to the model as data; all SQL is parameterised; sign-in is verified against the Supabase project's public key; every route needs an approved user; the daily cap reserves the call under a per-person lock before the model is contacted, so parallel or aborted requests still count; errors never leak internals. An automated security review of the backend found no high-confidence vulnerabilities.
+
+## 4b. Added later: submissions and review
+
+So that a day can be shown as done and checked by someone else, people can submit proof (links, screenshots, files) under each Week 1 day, and reviewers and admins can approve it or send it back with a comment (see the README section "Submissions and review"). It has 14 automated tests covering roles, access to other people's work and files, spoofed file types, size and count limits, parallel uploads, the full lifecycle and the audit trail. An independent security review of it found one medium issue (parallel uploads could pass the storage cap) and two smaller ones; all were fixed and have tests. A browser test drove both roles through the real screens in light, dark and phone layouts with no accessibility violations.
 
 ## 5. What is not done (be clear about this)
 

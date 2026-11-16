@@ -22,6 +22,11 @@ Say: the near-empty profile is rated "not enough information" and lists what is 
 Open **Week 1 report**. Show: criteria met, the plain-words explanation for each day, the model comparison (pick models and runs with the filters), and the recommendation with its limits.
 In a terminal, show `dotnet test` passing, and `docs/evals/` with the generated reports for Day 1 and Day 2.
 
+## 5. Submitting proof and reviewing it (2 min)
+As a member, open **Week 1 tasks**. Under a day, add a link and a screenshot, then **Submit for review**; the day shows "Waiting for review" and locks.
+Switch to a reviewer (in a development build the sidebar has a "Test account" switcher), open **Review submissions**, open the item, look at the proof, and send it back with a comment. Switch back to the member: the comment is shown, the day is editable again, and it can be resubmitted. Approve it as the reviewer to finish.
+Say: members cannot see the review page or anyone else's work; the server enforces this, hiding the menu item is only a convenience.
+
 ## If something goes wrong
 - "Sign in with your office account": the page needs a real login, not guest or local mode.
 - "The assistant is not set up yet": the three LLM settings are missing on the server.
