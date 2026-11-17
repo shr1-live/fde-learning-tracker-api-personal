@@ -15,12 +15,26 @@ public sealed class Target
     [JsonPropertyName("provider")] public string Provider { get; set; } = "openai";
     /// <summary>false = skipped unless picked by name (use for paid models, so a key in your shell never spends money by accident).</summary>
     [JsonPropertyName("enabled")] public bool Enabled { get; set; } = true;
+    /// <summary>Optional price in US dollars per million tokens, copied from the provider's price page. 0 for a model that runs on this computer. Left out when unknown: no cost is shown, never a guess.</summary>
+    [JsonPropertyName("price_in_per_million")] public double? PriceInPerMillion { get; set; }
+    [JsonPropertyName("price_out_per_million")] public double? PriceOutPerMillion { get; set; }
 }
 
 public sealed record ResolvedTarget(string Name, string BaseUrl, string Model, string ApiKey, string Provider);
 
 public static class Targets
 {
+    /// <summary>Prices (input, output; dollars per million tokens) for the targets that have both set.</summary>
+    public static Dictionary<string, (double In, double Out)> LoadPrices(string path)
+    {
+        try
+        {
+            var all = JsonSerializer.Deserialize<List<Target>>(File.ReadAllText(path)) ?? [];
+            return all.Where(t => t.PriceInPerMillion is >= 0 && t.PriceOutPerMillion is >= 0).ToDictionary(t => t.Name, t => (t.PriceInPerMillion!.Value, t.PriceOutPerMillion!.Value), StringComparer.OrdinalIgnoreCase);
+        }
+        catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException) { return []; }
+    }
+
     /// <summary>
     /// Reads the targets file and looks up each key in the environment. A target with no key is skipped with a message,
     /// except local ones (localhost), which need none. Returns what can run.

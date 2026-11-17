@@ -16,6 +16,8 @@ public sealed class CandidateAnalysisView
     public List<string> Gaps { get; init; } = [];
     public List<string> NotStated { get; init; } = [];
     public string Fit { get; init; } = "";
+    /// <summary>True when the profile contained text that gives orders to the assistant (it was ignored).</summary>
+    public bool InstructionsFound { get; init; }
     public SkillCheckView Check { get; init; } = new();
 }
 

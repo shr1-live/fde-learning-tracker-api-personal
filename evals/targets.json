@@ -2,12 +2,16 @@
   {
     "name": "qwen2.5:3b",
     "base_url": "http://127.0.0.1:11434/v1",
-    "model": "qwen2.5:3b"
+    "model": "qwen2.5:3b",
+    "price_in_per_million": 0,
+    "price_out_per_million": 0
   },
   {
     "name": "qwen2.5:1.5b",
     "base_url": "http://127.0.0.1:11434/v1",
-    "model": "qwen2.5:1.5b"
+    "model": "qwen2.5:1.5b",
+    "price_in_per_million": 0,
+    "price_out_per_million": 0
   },
   {
     "name": "claude",

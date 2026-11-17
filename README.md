@@ -112,6 +112,29 @@ Results and generated reports are written to `docs/evals/`. The frontend's Week 
 
 A small local model (qwen2.5:3b) handled create, list and update but not delete; see `docs/WEEK1-REPORT.md`. Use a stronger model for real use.
 
+## Guardrails and the Day 4 evaluation
+
+The model's answer is checked in code before anyone sees it (`Services/Llm/AnalysisParser.cs`, `Guardrails.cs`):
+
+1. **Real quotes only.** Every claimed skill needs a quote that is really in the profile and, for a known skill, names that skill. Claims without one are removed and counted.
+2. **A rating needs a real quote.** "strong" or "partial" with no backed claim becomes "insufficient_information".
+3. **Orders hidden in a profile are ignored (new).** `InstructionScreen` finds text that gives orders to the assistant ("ignore all previous instructions", "you are now...", "print your system prompt", a fake `</candidate>` tag, "output exactly and nothing else"). The sentences that contain them are cut out before the quote check and the skill check, so the injected text cannot vouch for itself. Such a profile cannot be rated above "partial", the model's summary is replaced by a fixed sentence, and "profile contains instructions" is added to what is not stated.
+4. **A top rating must match our own skill check (new).** "strong" needs at least half of the job's known skills to be found in the profile by our own code, independent of the model.
+
+`GuardrailOptions` switches these on and off so the evaluation can measure what each adds. The API always uses all of them.
+
+Run the 30-case evaluation (10 normal, 5 incomplete, 5 ambiguous, 5 injection, 5 edge; `evals/day4-cases.json`):
+
+```
+dotnet run --project FdeTracker.Evals -- day4
+```
+
+The model is called once per case and prompt version. Four configurations (no checks, the earlier checks, all checks, all checks with prompt v4) are then scored on the same raw answers. The report lists passes per category, unsupported claims shown, injection obeyed, what was fixed, what got worse and every failure (`docs/evals/day4-*-comparison.md`).
+
+### Cost figures
+
+In `evals/targets.json`, `price_in_per_million` and `price_out_per_million` (US dollars per million tokens, copied from the provider's price page) add a "Cost of this set" column to the Day 1 report. Use 0 for a model that runs on this computer. When no price is set the report says "not set" instead of guessing.
+
 ## Submissions and review
 
 A person hands in a task (for example a Week 1 day) with **proof**, and reviewers approve it or send it back.

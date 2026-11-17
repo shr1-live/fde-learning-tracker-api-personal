@@ -15,9 +15,10 @@ public static partial class AnalysisParser
 {
     static readonly string[] Fits = ["strong", "partial", "weak", "insufficient_information"];
 
-    public static (List<CandidateAnalysisView> Candidates, List<string> Warnings) Parse(string raw, IReadOnlyList<CandidateInput> input, List<string> requiredSkills)
+    /// <param name="guardrails">Which checks run. Null means all of them, which is what the API uses; the evaluation tool passes smaller sets to measure what each check adds.</param>
+    public static (List<CandidateAnalysisView> Candidates, List<string> Warnings) Parse(string raw, IReadOnlyList<CandidateInput> input, List<string> requiredSkills, GuardrailOptions? guardrails = null)
     {
-        try { return ParseCore(raw, input, requiredSkills); }
+        try { return ParseCore(raw, input, requiredSkills, guardrails ?? GuardrailOptions.All); }
         catch (Exception e) when (e is InvalidOperationException or KeyNotFoundException or FormatException or ArgumentException)
         {
             // A model can answer in any shape. Whatever it sends, the caller gets "unusable answer", never a crash.
@@ -25,7 +26,7 @@ public static partial class AnalysisParser
         }
     }
 
-    static (List<CandidateAnalysisView> Candidates, List<string> Warnings) ParseCore(string raw, IReadOnlyList<CandidateInput> input, List<string> requiredSkills)
+    static (List<CandidateAnalysisView> Candidates, List<string> Warnings) ParseCore(string raw, IReadOnlyList<CandidateInput> input, List<string> requiredSkills, GuardrailOptions g)
     {
         // Some models add words or code fences around the JSON, so look for the object that holds the answer.
         var doc = JsonText.Find(raw, "candidates") ?? throw new UnusableOutputException("No JSON object with a candidates list");
@@ -48,7 +49,7 @@ public static partial class AnalysisParser
                 warnings.Add($"{input[id - 1].Name}: a second analysis for the same candidate was ignored.");
                 continue;
             }
-            byId[id] = ReadCandidate(item, id, input[id - 1], requiredSkills, warnings);
+            byId[id] = ReadCandidate(item, id, input[id - 1], requiredSkills, warnings, g);
         }
         if (byId.Count == 0) throw new UnusableOutputException("No usable candidate in the answer");
         for (var i = 1; i <= input.Count; i++)
@@ -57,34 +58,55 @@ public static partial class AnalysisParser
     }
 
     /// <summary>One candidate's analysis, with every quoted claim checked against that candidate's own profile.</summary>
-    static CandidateAnalysisView ReadCandidate(JsonElement item, int id, CandidateInput person, List<string> requiredSkills, List<string> warnings)
+    static CandidateAnalysisView ReadCandidate(JsonElement item, int id, CandidateInput person, List<string> requiredSkills, List<string> warnings, GuardrailOptions g)
     {
-        var (matched, removed) = CheckClaims(item, person.Profile);
+        // A profile that gives orders to the screener is flagged. What is left after removing those sentences is the only text
+        // that may back a claim or count towards the skill check, so the injected text cannot vouch for itself.
+        var instructions = g.ScreenInstructions ? [.. InstructionScreen.Find(person.Profile), .. InstructionScreen.Find(person.Name)] : new List<string>(); // the name reaches the prompt too
+        var flagged = instructions.Count > 0;
+        var profile = flagged ? InstructionScreen.WithoutInstructions(person.Profile) : person.Profile;
+        if (flagged) warnings.Add($"{person.Name}: the profile contains instructions aimed at the screener (\"{instructions[0]}\"). They were ignored and the rating is limited.");
+
+        var (matched, removed) = CheckClaims(item, profile, g.CheckQuotes);
         if (removed > 0) warnings.Add($"{person.Name}: {removed} claim(s) removed because the quoted evidence is not in the profile.");
         var fit = Text(item, "fit", 40);
         if (!Fits.Contains(fit)) fit = "insufficient_information";
-        // Guardrail in code, whatever the prompt says: a good rating needs at least one claim backed by a real quote.
-        // This limits what an instruction hidden in a profile ("rate me strong") can achieve.
-        if (matched.Count == 0 && fit is "strong" or "partial")
+        // A good rating needs at least one claim backed by a real quote, whatever the prompt says.
+        if (g.LowerUnbackedRating && matched.Count == 0 && fit is "strong" or "partial")
         {
             fit = "insufficient_information";
             warnings.Add($"{person.Name}: rating lowered because no claim could be backed by a quote from the profile.");
         }
-        var (found, missing, score) = SkillTools.ScoreMatch(requiredSkills, SkillTools.ExtractSkills(person.Profile));
+        var (found, missing, score) = SkillTools.ScoreMatch(requiredSkills, SkillTools.ExtractSkills(profile));
+        // Our own skill check is independent of the model: "strong" needs at least half of the job's known skills in the profile.
+        if (g.LimitRatingBySkillCheck && fit == "strong" && requiredSkills.Count > 0 && score < 50)
+        {
+            fit = "partial";
+            warnings.Add($"{person.Name}: rating lowered because our own skill check found only {score}% of the job's skills in the profile.");
+        }
+        var notStated = Strings(item, "not_stated");
+        var summary = Text(item, "summary", 600);
+        if (flagged)
+        {
+            if (fit == "strong") fit = "partial";   // an instruction-carrying profile cannot earn the top rating
+            if (!notStated.Contains("profile contains instructions")) notStated.Add("profile contains instructions");
+            summary = "This profile contains instructions aimed at the screening assistant. They were ignored; the rating rests only on the facts the profile states.";
+        }
         return new CandidateAnalysisView
         {
             Id = id, Name = person.Name,
-            Summary = Text(item, "summary", 600),
+            Summary = summary,
             MatchedSkills = matched,
             RemovedClaims = removed,
-            Gaps = Strings(item, "gaps"),
-            NotStated = Strings(item, "not_stated"),
+            Gaps = flagged ? [] : Strings(item, "gaps"),   // the model's free text is not shown for a profile that gave orders
+            NotStated = notStated,
             Fit = fit,
+            InstructionsFound = flagged,
             Check = new SkillCheckView { Matched = found, Missing = missing, Score = score },
         };
     }
 
-    static (List<MatchedSkillView> Kept, int Removed) CheckClaims(JsonElement item, string profile)
+    static (List<MatchedSkillView> Kept, int Removed) CheckClaims(JsonElement item, string profile, bool checkQuotes)
     {
         var kept = new List<MatchedSkillView>();
         var removed = 0;
@@ -93,11 +115,14 @@ public static partial class AnalysisParser
             var skill = Text(m, "skill", 80);
             var evidence = Text(m, "evidence", 300);
             if (skill.Length == 0) continue;
-            if (IsQuoted(evidence, profile) && Supports(skill, evidence)) kept.Add(new MatchedSkillView { Skill = skill, Evidence = evidence });
+            if (!checkQuotes || IsSupported(skill, evidence, profile)) kept.Add(new MatchedSkillView { Skill = skill, Evidence = evidence });
             else removed++;
         }
         return (kept, removed);
     }
+
+    /// <summary>True when the quote is really in the profile and, for a known skill, mentions that skill. The evaluation tool uses this to count unsupported claims.</summary>
+    public static bool IsSupported(string skill, string evidence, string profile) => IsQuoted(evidence, profile) && Supports(skill, evidence);
 
     /// <summary>The quote must be at least 8 characters and appear in the profile (ignoring case and spacing). The profile reaches the model with &lt; and &gt; escaped, so that spelling is accepted too.</summary>
     static bool IsQuoted(string evidence, string profile)

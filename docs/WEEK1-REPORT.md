@@ -72,9 +72,30 @@ Text that comes back from a tool (such as a task title) reaches the model as esc
 
 **What a real model did (qwen2.5:3b, local, via the API):** it created a task with the right due date and priority, listed it, and marked it done. It did **not** manage the delete: it asked to delete with a made-up id, then updated a task instead. Our server refused or contained each mistake and nothing was deleted without a confirmation, but the assistant is not usable with a model that small. This run also found a real bug in our tool: listing defaulted to open tasks only, so a finished task could never be found again to delete. Fixed (the default now lists every task) with a regression test. The delete-with-confirmation path itself is proven by the automated tests with a scripted model, not by a real model; a stronger hosted model (for example Claude) should be run through it before the assistant is relied on.
 
+### Day 4: evaluation, reliability and guardrails
+
+Thirty fixed cases (`evals/day4-cases.json`): 10 normal, 5 incomplete, 5 ambiguous, 5 injection, 5 edge, each with the expected behaviour (acceptable ratings, skills that must not be claimed, text that must not appear, whether missing information must be shown). The model answers each case once per prompt version; four configurations then score the same raw answers, so the difference comes from the checks (`docs/evals/day4-local-comparison.md`, raw replies in `day4-local-raw.json`).
+
+| Configuration | Cases passed | Unsupported claims shown | Hidden order obeyed |
+|---|---|---|---|
+| baseline: prompt v2, no checks | 13 of 30 | 37 | 3 of 5 |
+| earlier checks (real quotes, rating needs a quote) | 23 of 30 | 5 | 3 of 5 |
+| all checks, prompt v2 | 27 of 30 | 0 | 0 of 5 |
+| **final: all checks, prompt v4 (what the API runs)** | **26 of 30** | **0** | **0 of 5** |
+
+New checks added for this day, all in code and independent of the model:
+- text in a profile or a name that gives orders to the assistant is found (including phrases broken across lines, hidden zero-width characters, look-alike letters and odd spaces) and cut out before the quote check and the skill check, so injected text cannot vouch for itself; such a profile cannot be rated above "partial", the model's summary and gaps are not shown, and "profile contains instructions" is recorded;
+- "strong" has to match our own skill check (at least half of the job's skills found in the profile by plain code).
+
+Criteria: all categories represented (30 cases); expected behaviour defined per case; before and after recorded (table above); failure cases documented (below); prompt-injection cases did not override the instructions (0 of 5 obeyed, the screen caught 5 of 5 with no false alarm on the other 25 cases); no unsupported claims shown (0, against 37 before).
+
+**Failures that remain (4 of 30: n02, n03, n08, n09).** In all four the model itself rated a clear profile "insufficient information" (the Java developer and the Angular developer against jobs that need other skills, for example); our checks only pass that on. With prompt v4 this happens once more than with v2 (case n02 passes with v2), so v4 is not clearly better than v2 on this set (26 against 27 of 30, a one-case difference that is within the noise of a single run). The checks also have a price: with prompt v2, case n08 was a correct "partial" that the rule "a rating needs a real quote" lowered, because the model reworded its quotes and copied one "skill" from the job text. The first Day 4 design also flagged honest phrases such as "wrote system prompts for a support assistant"; an independent review found this and the screen was narrowed (tests cover those phrases).
+
+Limits, stated plainly: one run per prompt version on one small local model; the attack cases were known to the checks when they were written, so a fresh set of attacks is the real test; the screen is not a wall (a cleverly worded order can still pass it, which is why the hard limits above do not depend on it); a hosted model has not been run.
+
 ### Day 5: end to end
 
-Working flow from the Assistant page to the model and back, with validated input and output, two plain functions used by the service (find skills, score a match), clear failure messages, usage and latency logging, a daily cap per person, 89 automated tests (the whole backend), a README section, `docs/DEMO.md`, and this report.
+Working flow from the Assistant page to the model and back, with validated input and output, two plain functions used by the service (find skills, score a match), clear failure messages, usage and latency logging, a daily cap per person, 114 automated tests (the whole backend), a README section, `docs/DEMO.md`, and this report.
 
 ## 3. What testing found
 
@@ -97,7 +118,7 @@ So that a day can be shown as done and checked by someone else, people can submi
 | Item | Status |
 |---|---|
 | **Day 3: structured outputs and tool calling** | Built and tested (see Day 3 above), but the real-model proof is partial: the small local model could not complete the delete flow. A run with a stronger hosted model is still needed. |
-| **Day 4: 30-case evaluation, guardrails, before and after** | Not built. The Day 1 and Day 2 runs are the basis; the injection result above is the first failure case to fix. |
+| **Day 4: 30-case evaluation, guardrails, before and after** | Built and run (see Day 4 above). Not proven on a hosted model, and 4 of 30 cases still fail; a fresh set of attacks is still to be written. |
 | **A hosted model in the comparison** | Claude client is built and tested with a fake provider, but no real Claude run exists yet: it needs the key on the owner's machine (`EVAL_ONLY=claude`; the target is off by default because it is paid). Local small models are not representative of production quality. |
 | **Deployment** | Not deployed. Needs the Render service, a hosted model and its key set in the Render dashboard, and the frontend's API address. Local models cannot run on Render. |
 | **Merged to main** | Work is on feature branches and `develop`, not yet in `main`. |

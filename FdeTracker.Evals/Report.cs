@@ -12,7 +12,7 @@ public static class Report
     }
 
     /// <summary>Markdown report plus a recommendation. Rule: highest pass rate wins; ties go to the lower median latency.</summary>
-    public static string Day1(List<CaseResult> results, string[] models, PromptSet set, string label)
+    public static string Day1(List<CaseResult> results, string[] models, PromptSet set, string label, IReadOnlyDictionary<string, (double In, double Out)>? prices = null)
     {
         var sb = new StringBuilder();
         sb.AppendLine("# Day 1: model comparison on a fixed prompt set").AppendLine();
@@ -31,8 +31,11 @@ public static class Report
         }).ToList();
 
         sb.AppendLine("## Summary").AppendLine();
-        sb.AppendLine("| Model | Passed | Errors | Median latency | Slowest | Input tokens | Output tokens |").AppendLine("|---|---|---|---|---|---|---|");
-        foreach (var s in stats) sb.AppendLine($"| {s.Model} | {s.Passed}/{s.Total} | {s.Errors} | {s.Median / 1000:0.0} s | {s.Max / 1000.0:0.0} s | {s.TokensIn} | {s.TokensOut} |");
+        // Cost = tokens x the price set in targets.json. No price set means no number (a local model has price 0; an unknown one is shown as "not set", never guessed).
+        string Cost(string model, int tin, int tout) =>
+            prices is not null && prices.TryGetValue(model, out var p) ? (p.In == 0 && p.Out == 0 ? "$0 (local)" : $"${(tin * p.In + tout * p.Out) / 1_000_000:0.0000}") : "not set";
+        sb.AppendLine("| Model | Passed | Errors | Median latency | Slowest | Input tokens | Output tokens | Cost of this set |").AppendLine("|---|---|---|---|---|---|---|---|");
+        foreach (var s in stats) sb.AppendLine($"| {s.Model} | {s.Passed}/{s.Total} | {s.Errors} | {s.Median / 1000:0.0} s | {s.Max / 1000.0:0.0} s | {s.TokensIn} | {s.TokensOut} | {Cost(s.Model, s.TokensIn, s.TokensOut)} |");
 
         sb.AppendLine().AppendLine("## Per prompt (pass / fail)").AppendLine();
         sb.AppendLine("| Prompt | Kind | " + string.Join(" | ", models) + " |").AppendLine("|---|---|" + string.Join("|", models.Select(_ => "---")) + "|");

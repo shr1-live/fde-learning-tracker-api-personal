@@ -1,7 +1,7 @@
 using System.Text.Json;
 using FdeTracker.Evals;
 
-// Usage: dotnet run --project FdeTracker.Evals -- day1
+// Usage: dotnet run --project FdeTracker.Evals -- day1 | day2 | day4 | day4-rescore
 // Which models run is decided by evals/targets.json (any provider that offers the common chat-completions API).
 // Settings come from environment variables, never from code:
 //   EVAL_TARGETS   path to the targets file, default evals/targets.json
@@ -30,7 +30,7 @@ switch (command)
         var json = Path.Combine(outDir, $"day1-{label}-results.json");
         var md = Path.Combine(outDir, $"day1-{label}-comparison.md");
         File.WriteAllText(json, JsonSerializer.Serialize(results, new JsonSerializerOptions { WriteIndented = true }));
-        File.WriteAllText(md, Report.Day1(results, names, set, label));
+        File.WriteAllText(md, Report.Day1(results, names, set, label, Targets.LoadPrices(targetsPath)));
         Console.WriteLine($"\nWrote {md}\nWrote {json}");
         break;
     case "day2":
@@ -44,8 +44,30 @@ switch (command)
         File.WriteAllText(md2, Day2Report.Make(rows, cases, label));
         Console.WriteLine($"\nWrote {md2}\nWrote {json2}");
         break;
+    case "day4":
+        var day4Targets = Targets.Load(targetsPath, only);
+        if (day4Targets.Count == 0) { Console.Error.WriteLine("No model can run. Check evals/targets.json and the key environment variables."); return 1; }
+        var set4 = JsonSerializer.Deserialize<Day4Set>(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "evals", "day4-cases.json")))!;
+        var raws4 = await Day4Runner.Call(set4, day4Targets, timeout);
+        File.WriteAllText(Path.Combine(outDir, $"day4-{label}-raw.json"), JsonSerializer.Serialize(raws4, new JsonSerializerOptions { WriteIndented = true }));
+        var rows4 = Day4Runner.Rescore(set4, raws4);
+        var json4 = Path.Combine(outDir, $"day4-{label}-results.json");
+        var md4 = Path.Combine(outDir, $"day4-{label}-comparison.md");
+        File.WriteAllText(json4, JsonSerializer.Serialize(rows4, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(md4, Day4Report.Make(rows4, set4, label));
+        Console.WriteLine($"\nWrote {md4}\nWrote {json4}");
+        break;
+    case "day4-rescore":
+        // Re-applies the current checks to the model replies saved by a day4 run. No model is called.
+        var set4r = JsonSerializer.Deserialize<Day4Set>(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "evals", "day4-cases.json")))!;
+        var raws4r = JsonSerializer.Deserialize<List<Day4Raw>>(File.ReadAllText(Path.Combine(outDir, $"day4-{label}-raw.json")))!;
+        var rows4r = Day4Runner.Rescore(set4r, raws4r);
+        File.WriteAllText(Path.Combine(outDir, $"day4-{label}-results.json"), JsonSerializer.Serialize(rows4r, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(Path.Combine(outDir, $"day4-{label}-comparison.md"), Day4Report.Make(rows4r, set4r, label));
+        Console.WriteLine($"Re-scored {raws4r.Count} replies for label {label}.");
+        break;
     default:
-        Console.Error.WriteLine($"Unknown command '{command}'. Available: day1, day2");
+        Console.Error.WriteLine($"Unknown command '{command}'. Available: day1, day2, day4, day4-rescore");
         return 1;
 }
 return 0;
