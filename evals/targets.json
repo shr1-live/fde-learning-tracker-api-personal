@@ -14,6 +14,15 @@
     "price_out_per_million": 0
   },
   {
+    "name": "gemini",
+    "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+    "model": "gemini-2.5-flash",
+    "api_key_env": "GEMINI_API_KEY",
+    "enabled": false,
+    "price_in_per_million": 0,
+    "price_out_per_million": 0
+  },
+  {
     "name": "claude",
     "provider": "anthropic",
     "model": "claude-haiku-5-5",
