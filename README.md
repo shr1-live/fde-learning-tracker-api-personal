@@ -129,6 +129,8 @@ Run the 30-case evaluation (10 normal, 5 incomplete, 5 ambiguous, 5 injection, 5
 dotnet run --project FdeTracker.Evals -- day4
 ```
 
+`evals/day4-holdout.json` is a second, fresh set (10 new attacks in other wordings and 5 honest profiles) written after the checks and not used to tune them: run it with `EVAL_CASES=day4-holdout.json EVAL_RUN=holdout`. Its result is the fairer one: the new instruction screen caught none of the new attacks, and the older quote rules did the work (see `docs/WEEK1-REPORT.md`). `day4-rescore` re-applies the current checks to the saved raw replies without calling a model.
+
 The model is called once per case and prompt version. Four configurations (no checks, the earlier checks, all checks, all checks with prompt v4) are then scored on the same raw answers. The report lists passes per category, unsupported claims shown, injection obeyed, what was fixed, what got worse and every failure (`docs/evals/day4-*-comparison.md`).
 
 ### Cost figures

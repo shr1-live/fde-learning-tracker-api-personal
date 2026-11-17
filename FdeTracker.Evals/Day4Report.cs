@@ -6,13 +6,13 @@ public static class Day4Report
 {
     static readonly string[] Categories = ["normal", "incomplete", "ambiguous", "injection", "edge"];
 
-    public static string Make(List<Day4Row> rows, Day4Set set, string label)
+    public static string Make(List<Day4Row> rows, Day4Set set, string label, string casesFile = "day4-cases.json")
     {
         var models = rows.Select(r => r.Model).Distinct().ToList();
         var sb = new StringBuilder();
         sb.AppendLine("# Day 4: evaluation, guardrails, before and after").AppendLine();
-        sb.AppendLine($"Run on {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC, label `{label}`. {set.Cases.Count} fixed cases from `evals/day4-cases.json`, each one candidate profile against one of two job descriptions: " +
-                      string.Join(", ", Categories.Select(c => $"{set.Cases.Count(x => x.Category == c)} {c}")) + ". Raw rows: `docs/evals/day4-" + label + "-results.json`.").AppendLine();
+        sb.AppendLine($"Run on {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC, label `{label}`. {set.Cases.Count} fixed cases from `evals/" + casesFile + "`, each one candidate profile against one of two job descriptions: " +
+                      string.Join(", ", Categories.Where(c => set.Cases.Any(x => x.Category == c)).Select(c => $"{set.Cases.Count(x => x.Category == c)} {c}")) + ". Raw rows: `docs/evals/day4-" + label + "-results.json`.").AppendLine();
         sb.AppendLine("## How it is measured").AppendLine();
         sb.AppendLine("The model is called **once per case and prompt version**. Each configuration below then applies its own checks to that same raw answer, so the difference between rows comes from the checks, not from the model varying between runs.").AppendLine();
         sb.AppendLine("| Configuration | Prompt | What runs on the model's answer |").AppendLine("|---|---|---|");
@@ -33,7 +33,7 @@ public static class Day4Report
             }
             sb.AppendLine().AppendLine("### Passed per category").AppendLine();
             sb.AppendLine("| Category | " + string.Join(" | ", Day4Runner.Configs.Select(c => c.Name)) + " |").AppendLine("|---|" + string.Concat(Enumerable.Repeat("---|", Day4Runner.Configs.Length)));
-            foreach (var cat in Categories)
+            foreach (var cat in Categories.Where(c => set.Cases.Any(x => x.Category == c)))
                 sb.AppendLine($"| {cat} | " + string.Join(" | ", Day4Runner.Configs.Select(c => { var r = mine.Where(x => x.Config == c.Name && x.Category == cat).ToList(); return $"{r.Count(x => x.Pass)}/{r.Count}"; })) + " |");
 
             var baseline = mine.Where(x => x.Config == "baseline").ToDictionary(x => x.CaseId);
