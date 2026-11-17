@@ -110,7 +110,7 @@ Limits, stated plainly: one run per prompt version on one small local model; the
 
 ### Day 5: end to end
 
-Working flow from the Assistant page to the model and back, with validated input and output, two plain functions used by the service (find skills, score a match), clear failure messages, usage and latency logging, a daily cap per person, 114 automated tests (the whole backend), a README section, `docs/DEMO.md`, and this report.
+Working flow from the Assistant page to the model and back, with validated input and output, two plain functions used by the service (find skills, score a match), clear failure messages, usage and latency logging, a daily cap per person, 143 automated tests (the whole backend), a README section, `docs/DEMO.md`, and this report.
 
 ## 3. What testing found
 

@@ -19,6 +19,20 @@ public sealed class AppOptions
     public int LlmDailyCap { get; init; } = 20;
     public int LlmTimeoutSeconds { get; init; } = 30;
     public int LlmRetryDelayMs { get; init; } = 1000;
+    /// <summary>Overall deadline for one model call, every attempt and wait included.</summary>
+    public int LlmTotalTimeoutSeconds { get; init; } = 60;
+    /// <summary>Tries per call for failures that can pass (429, 5xx, network).</summary>
+    public int LlmMaxAttempts { get; init; } = 3;
+    /// <summary>The longest wait a provider may ask for (Retry-After) that we will sit through. Longer, and the caller is told how long to wait.</summary>
+    public int LlmMaxRetryAfterSeconds { get; init; } = 30;
+    /// <summary>One task-assistant message may take this long in all (up to four model calls). When it runs out, the reply says what was done so far.</summary>
+    public int TaskMessageDeadlineSeconds { get; init; } = 90;
+    /// <summary>The longest any single database command may run.</summary>
+    public int DbCommandTimeoutSeconds { get; init; } = 20;
+    /// <summary>How the client waits between attempts. Tests replace it so they do not really wait.</summary>
+    public Func<TimeSpan, CancellationToken, Task> Sleep { get; init; } = Task.Delay;
+    /// <summary>A number from 0 to 1 that spreads retries out. Tests replace it to get exact waits.</summary>
+    public Func<double> Jitter { get; init; } = Random.Shared.NextDouble;
     public int RateLimitPerMinute { get; init; } = 240; // all requests per address
     public int WriteLimitPerMinute { get; init; } = 40; // changes per person
     public int LlmMaxTokens { get; init; } = 3000; // longest answer we pay for; raise it if several candidates get cut off
@@ -51,6 +65,11 @@ public sealed class AppOptions
             LlmDailyCap = Num("LLM_DAILY_CAP", 20),
             LlmTimeoutSeconds = Num("LLM_TIMEOUT_SECONDS", 30),
             LlmRetryDelayMs = Num("LLM_RETRY_DELAY_MS", 1000),
+            LlmTotalTimeoutSeconds = Num("LLM_TOTAL_TIMEOUT_SECONDS", 60),
+            LlmMaxAttempts = Num("LLM_MAX_ATTEMPTS", 3),
+            LlmMaxRetryAfterSeconds = Num("LLM_MAX_RETRY_AFTER_SECONDS", 30),
+            TaskMessageDeadlineSeconds = Num("TASK_MESSAGE_DEADLINE_SECONDS", 90),
+            DbCommandTimeoutSeconds = Num("DB_COMMAND_TIMEOUT_SECONDS", 20),
             LlmMaxTokens = Num("LLM_MAX_TOKENS", 3000),
             RateLimitPerMinute = Num("RATE_LIMIT_PER_MINUTE", 240),
             WriteLimitPerMinute = Num("WRITE_LIMIT_PER_MINUTE", 40),

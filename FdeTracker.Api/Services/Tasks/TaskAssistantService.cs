@@ -44,11 +44,14 @@ public sealed class TaskAssistantService(Db db, ILlmClient llm, LlmCallRepositor
         string? reply = null;
         PendingView? pending = null;
         int inTokens = 0, outTokens = 0, latency = 0, badReplies = 0;
+        // One message may use up to four model calls; this is the limit on all of them together. The caller leaving still cancels everything.
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(TimeSpan.FromSeconds(options.TaskMessageDeadlineSeconds));
         try
         {
             for (var step = 0; step < MaxSteps && reply is null && pending is null; step++)
             {
-                var answer = await llm.CompleteAsync(SystemPrompt.Value, BuildUser(message, transcript), ct);
+                var answer = await llm.CompleteAsync(SystemPrompt.Value, BuildUser(message, transcript), deadline.Token);
                 inTokens += answer.InputTokens; outTokens += answer.OutputTokens; latency += answer.LatencyMs;
 
                 var parsed = Parse(answer.Text);
@@ -81,13 +84,22 @@ public sealed class TaskAssistantService(Db db, ILlmClient llm, LlmCallRepositor
         {
             logger.LogWarning("Task assistant model call failed: {Kind}: {Message}", e.Kind, e.Message);
             await Finish(callId, llm.Model, null, null, null, e.Kind);
-            throw e.Kind == "timeout" ? new ApiException(504, "The model took too long. Try again.") : new ApiException(502, "The model service is not available. Try again later.");
+            throw LlmFailure.ToApi(e);
         }
         catch (UnusableOutputException e)
         {
             logger.LogWarning("Task assistant answer refused: {Reason}", e.Message);
             await Finish(callId, llm.Model, inTokens, outTokens, latency, "invalid_output");
             throw new ApiException(502, "The model gave an answer we could not use. Try again.");
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            // The overall deadline ran out (the caller is still there). Whatever already ran stays done and is listed, so nothing is lost silently.
+            logger.LogWarning("Task assistant message ran past its {Seconds} second deadline", options.TaskMessageDeadlineSeconds);
+            await Finish(callId, llm.Model, null, null, null, "timeout");
+            reply = actions.Count > 0
+                ? "I ran out of time. The actions listed below are what was done; please check them and ask again for the rest."
+                : "That took too long and nothing was done. Please try again.";
         }
         catch (OperationCanceledException)
         {

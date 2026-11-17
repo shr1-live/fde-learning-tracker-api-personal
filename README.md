@@ -72,7 +72,10 @@ Prompt versions live in `FdeTracker.Api/Prompts/analyze.v1.md` to `v4.md`; `v4` 
 | `LLM_API_KEY` | the key (any non-empty text for a local Ollama). Never put it in code, in the repo or in chat |
 | `LLM_MODEL` | the model name |
 | `LLM_DAILY_CAP` | analyses per person per 24 hours (default 20) |
-| `LLM_TIMEOUT_SECONDS`, `LLM_RETRY_DELAY_MS` | per-call timeout (default 30) and retry wait (default 1000) |
+| `LLM_TIMEOUT_SECONDS`, `LLM_RETRY_DELAY_MS` | per-attempt time limit (default 30) and the first retry wait (default 1000; it doubles each time) |
+| `LLM_TOTAL_TIMEOUT_SECONDS`, `LLM_MAX_ATTEMPTS`, `LLM_MAX_RETRY_AFTER_SECONDS` | overall deadline for one call, attempts allowed (default 60 s, 3), and the longest provider-requested wait we will sit through (default 30 s) |
+| `TASK_MESSAGE_DEADLINE_SECONDS` | one task-assistant message may take this long in all (default 90); when it runs out the reply lists what was already done |
+| `DB_COMMAND_TIMEOUT_SECONDS` | the longest any single database command may run (default 20) |
 | `LLM_MAX_TOKENS` | longest answer paid for per call (default 3000); raise it if several candidates get cut off |
 | `RATE_LIMIT_PER_MINUTE`, `WRITE_LIMIT_PER_MINUTE` | requests per minute per address (default 240) and writes per minute per person (default 40) |
 
@@ -111,6 +114,21 @@ Results and generated reports are written to `docs/evals/`. The frontend's Week 
 - **Limits:** counts against the same daily cap as the recruitment assistant (one reservation per message), 200 tasks per person.
 
 A small local model (qwen2.5:3b) handled create, list and update but not delete; see `docs/WEEK1-REPORT.md`. Use a stronger model for real use.
+
+## Model errors and retries
+
+A failure of the model provider is sorted (`Services/Llm/Errors.cs`) into a category and a retry flag, and every endpoint that talks to the model answers with the same wording (`LlmFailure.cs`). The error body keeps `error` and adds `category` (`validation`, `permission`, `business`, `transient`, `ratelimit`), `retryable`, `kind` and, for a rate limit, `retry_after_seconds` (also sent as `Retry-After`).
+
+| Provider said | Category | Retryable | Caller gets |
+|---|---|---|---|
+| 429 | ratelimit | yes | 429 and the wait the provider asked for |
+| 5xx, network failure, unreadable answer | transient | yes | 502 / 503 |
+| no answer in time | transient | yes | 504 (not retried inside the call: the time is spent) |
+| 401, 403 | permission | no | 502 "setup problem, tell the administrator" |
+| 400, 413 | validation | no | 502 "may be too long" |
+| 404 (model not found), safety block | business | no | 502 / 422 |
+
+Retries (429, 5xx, network) wait what the provider asks for (the `Retry-After` header, or the "retry in 28s" hint Gemini puts in its error), or else 1 s, 2 s, 4 s... with up to 25% randomness; a wait longer than 30 s is passed to the caller instead, no wait is started past the overall deadline (60 s), and each attempt only gets what is left of it. The usage log (`llm_calls.status`) records which kind failed. A task-assistant message has its own overall deadline (default 90 s, up to four model calls): if it runs out, the reply says what was already done. Every database command has a time limit (default 20 s).
 
 ## Guardrails and the Day 4 evaluation
 

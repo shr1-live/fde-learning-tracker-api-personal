@@ -29,10 +29,14 @@ public sealed class FakeLlm : ILlmClient
     public string LastUser { get; private set; } = "";
     public int Calls { get; private set; }
 
-    public Task<LlmResult> CompleteAsync(string system, string user, CancellationToken ct)
+    /// <summary>How long the next answers take. The wait honours cancellation, like a real provider call.</summary>
+    public TimeSpan Delay { get; set; }
+
+    public async Task<LlmResult> CompleteAsync(string system, string user, CancellationToken ct)
     {
         LastSystem = system; LastUser = user; Calls++;
-        return Task.FromResult((Handler ?? throw new InvalidOperationException("No fake answer set")).Invoke(system, user));
+        if (Delay > TimeSpan.Zero) await Task.Delay(Delay, ct);
+        return (Handler ?? throw new InvalidOperationException("No fake answer set")).Invoke(system, user);
     }
 }
 
@@ -67,6 +71,7 @@ public sealed class ApiFixture : IAsyncLifetime
         Environment.SetEnvironmentVariable("LLM_DAILY_CAP", "20");
         // The suite fires hundreds of requests in seconds; production keeps the defaults (240 per address, 40 writes per person).
         Environment.SetEnvironmentVariable("RATE_LIMIT_PER_MINUTE", "100000");
+        Environment.SetEnvironmentVariable("TASK_MESSAGE_DEADLINE_SECONDS", "2"); // short, so the deadline test does not take a minute; the fake model answers at once
         Environment.SetEnvironmentVariable("WRITE_LIMIT_PER_MINUTE", "100000");
         _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(b => b.ConfigureServices(s =>
         {

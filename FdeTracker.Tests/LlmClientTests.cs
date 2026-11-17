@@ -68,7 +68,8 @@ public sealed class LlmClientTests
         var stub = new Stub((_, _) => Task.FromResult(Json(HttpStatusCode.Unauthorized, """{"error":"secret-detail test-key"}""")));
         var client = LlmClientFactory.Create("anthropic", new HttpClient(stub), Opts());
         var e = await Assert.ThrowsAsync<LlmException>(() => client.CompleteAsync("s", "u", CancellationToken.None));
-        Assert.Equal("provider_error", e.Kind);
+        Assert.Equal("auth", e.Kind);
+        Assert.Equal(ErrorCategory.Permission, e.Category);
         Assert.DoesNotContain("secret-detail", e.Message);
         Assert.DoesNotContain("test-key", e.Message);
         Assert.Equal(1, stub.Calls); // a 401 is not retried
@@ -90,7 +91,7 @@ public sealed class LlmClientTests
         var stub = new Stub((_, _) => Task.FromResult(Json(HttpStatusCode.OK, """{"unexpected":true}""")));
         var client = LlmClientFactory.Create("anthropic", new HttpClient(stub), Opts());
         var e = await Assert.ThrowsAsync<LlmException>(() => client.CompleteAsync("s", "u", CancellationToken.None));
-        Assert.Equal("provider_error", e.Kind);
+        Assert.Equal("bad_format", e.Kind);
     }
 
     [Fact]

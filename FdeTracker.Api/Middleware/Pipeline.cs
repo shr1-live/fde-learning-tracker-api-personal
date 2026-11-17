@@ -21,6 +21,15 @@ public static class ErrorBody
         ctx.Response.StatusCode = status;
         return ctx.Response.WriteAsJsonAsync(new { error = message });
     }
+
+    /// <summary>The same body, plus the category, kind, retry flag and wait when the error carries them. Old callers that only read "error" are not affected.</summary>
+    public static Task Write(HttpContext ctx, ApiException e)
+    {
+        if (e.Category is null) return Write(ctx, e.Status, e.Message);
+        ctx.Response.StatusCode = e.Status;
+        if (e.RetryAfterSeconds is { } s) ctx.Response.Headers.RetryAfter = ((int)Math.Ceiling(s)).ToString();
+        return ctx.Response.WriteAsJsonAsync(new { error = e.Message, category = e.Category, retryable = e.Retryable ?? false, kind = e.Kind, retry_after_seconds = e.RetryAfterSeconds });
+    }
 }
 
 public sealed class ErrorHandlingMiddleware(RequestDelegate next, ILogger<ErrorHandlingMiddleware> logger)
@@ -28,7 +37,7 @@ public sealed class ErrorHandlingMiddleware(RequestDelegate next, ILogger<ErrorH
     public async Task Invoke(HttpContext ctx)
     {
         try { await next(ctx); }
-        catch (ApiException e) when (!ctx.Response.HasStarted) { await ErrorBody.Write(ctx, e.Status, e.Message); }
+        catch (ApiException e) when (!ctx.Response.HasStarted) { await ErrorBody.Write(ctx, e); }
         catch (BadHttpRequestException e) when (!ctx.Response.HasStarted)
         {
             await ErrorBody.Write(ctx, e.StatusCode, e.StatusCode == 413 ? "Request too large" : "Invalid request");

@@ -25,7 +25,7 @@ if (Environment.GetEnvironmentVariable("PORT") is { Length: > 0 } port) builder.
 
 // ---- data and model layer
 builder.Services.AddSingleton(options);
-builder.Services.AddSingleton(NpgsqlDataSource.Create(ConnectionString.Normalize(options.DatabaseUrl)));
+builder.Services.AddSingleton(NpgsqlDataSource.Create(ConnectionString.Normalize(options.DatabaseUrl, options.DbCommandTimeoutSeconds)));
 builder.Services.AddSingleton<Db>();
 builder.Services.AddSingleton<UserRepository>();
 builder.Services.AddSingleton<CatalogRepository>();

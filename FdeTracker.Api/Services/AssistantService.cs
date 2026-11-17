@@ -41,7 +41,7 @@ public sealed class AssistantService(Db db, ILlmClient llm, PromptLibrary prompt
         {
             logger.LogWarning("LLM call failed: {Kind}: {Message}", e.Kind, e.Message);
             await Finish(callId, llm.Model, null, null, null, e.Kind);
-            throw e.Kind == "timeout" ? new ApiException(504, "The model took too long. Try again.") : new ApiException(502, "The model service is not available. Try again later.");
+            throw LlmFailure.ToApi(e);
         }
         catch (OperationCanceledException)
         {
