@@ -74,6 +74,8 @@ Prompt versions live in `FdeTracker.Api/Prompts/analyze.v1.md` to `v4.md`; `v4` 
 | `LLM_DAILY_CAP` | analyses per person per 24 hours (default 20) |
 | `LLM_TIMEOUT_SECONDS`, `LLM_RETRY_DELAY_MS` | per-attempt time limit (default 30) and the first retry wait (default 1000; it doubles each time) |
 | `LLM_TOTAL_TIMEOUT_SECONDS`, `LLM_MAX_ATTEMPTS`, `LLM_MAX_RETRY_AFTER_SECONDS` | overall deadline for one call, attempts allowed (default 60 s, 3), and the longest provider-requested wait we will sit through (default 30 s) |
+| `LLM_TEMPERATURE`, `LLM_TOP_P` | temperature (default 0 = the most repeatable answers; 0 to 2, or 0 to 1 for Claude; a bad value falls back to 0) and optional `top_p` (0 to 1, not sent unless set) |
+| `ASSISTANT_SUMMARY` | `model` (default) shows the model's own summary text; `code` builds the summary, gaps and not-stated list in our code from the checked fields, so no free text of the model's reaches the user (closes the planted-word attack on the fresh test; the wording is plainer) |
 | `TASK_MESSAGE_DEADLINE_SECONDS` | one task-assistant message may take this long in all (default 90); when it runs out the reply lists what was already done |
 | `DB_COMMAND_TIMEOUT_SECONDS` | the longest any single database command may run (default 20) |
 | `LLM_MAX_TOKENS` | longest answer paid for per call (default 3000); raise it if several candidates get cut off |

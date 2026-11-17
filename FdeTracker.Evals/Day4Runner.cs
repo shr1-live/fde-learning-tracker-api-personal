@@ -56,7 +56,8 @@ public static class Day4Runner
         new("baseline", "v2", GuardrailOptions.None, "Prompt v2, no checks on the answer: the model's reply as it came."),
         new("existing", "v2", GuardrailOptions.Existing, "Prompt v2 plus the checks that existed before Day 4: quotes must be real, a rating needs one real quote."),
         new("all-v2", "v2", GuardrailOptions.All, "Prompt v2 plus every check, including the new Day 4 ones."),
-        new("final", "v4", GuardrailOptions.All, "Prompt v4 plus every check. This is what the API runs."),
+        new("final", "v4", GuardrailOptions.All, "Prompt v4 plus every check. This is what the API runs by default."),
+        new("final-code", "v4", GuardrailOptions.AllWithCodeSummary, "As final, but the summary, gaps and not-stated list are built in code (ASSISTANT_SUMMARY=code): none of the model's free text is shown."),
     ];
 
     public static async Task<List<Day4Raw>> Call(Day4Set set, IReadOnlyList<ResolvedTarget> targets, int timeoutSeconds)

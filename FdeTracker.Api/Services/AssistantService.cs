@@ -51,7 +51,7 @@ public sealed class AssistantService(Db db, ILlmClient llm, PromptLibrary prompt
 
         try
         {
-            var (candidates, warnings) = AnalysisParser.Parse(result.Text, req.Candidates, required);
+            var (candidates, warnings) = AnalysisParser.Parse(result.Text, req.Candidates, required, options.AssistantSummary == "code" ? GuardrailOptions.AllWithCodeSummary : GuardrailOptions.All);
             await Finish(callId, result.Model, result.InputTokens, result.OutputTokens, result.LatencyMs, "ok");
             return new AnalysisView
             {

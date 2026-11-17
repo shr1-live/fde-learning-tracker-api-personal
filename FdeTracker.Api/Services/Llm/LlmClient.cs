@@ -112,14 +112,16 @@ public sealed class OpenAiCompatibleClient(HttpClient http, AppOptions options) 
 
     protected override HttpRequestMessage BuildRequest(string system, string user)
     {
-        var body = JsonSerializer.Serialize(new
+        var payload = new Dictionary<string, object?>
         {
-            model = Options.LlmModel,
-            temperature = 0,
-            max_tokens = Options.LlmMaxTokens, // bounds the cost of one answer (LLM_MAX_TOKENS)
-            response_format = new { type = "json_object" },
-            messages = new object[] { new { role = "system", content = system }, new { role = "user", content = user } },
-        });
+            ["model"] = Options.LlmModel,
+            ["temperature"] = Options.LlmTemperature,
+            ["max_tokens"] = Options.LlmMaxTokens, // bounds the cost of one answer (LLM_MAX_TOKENS)
+            ["response_format"] = new { type = "json_object" },
+            ["messages"] = new object[] { new { role = "system", content = system }, new { role = "user", content = user } },
+        };
+        if (Options.LlmTopP is { } topP) payload["top_p"] = topP;
+        var body = JsonSerializer.Serialize(payload);
         var req = new HttpRequestMessage(HttpMethod.Post, Options.LlmBaseUrl!.TrimEnd('/') + "/chat/completions") { Content = new StringContent(body, Encoding.UTF8, "application/json") };
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Options.LlmApiKey);
         return req;

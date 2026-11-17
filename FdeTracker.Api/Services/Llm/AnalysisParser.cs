@@ -84,8 +84,8 @@ public static partial class AnalysisParser
             fit = "partial";
             warnings.Add($"{person.Name}: rating lowered because our own skill check found only {score}% of the job's skills in the profile.");
         }
-        var notStated = Strings(item, "not_stated");
-        var summary = Text(item, "summary", 600);
+        var notStated = g.CodeSummary ? [] : Strings(item, "not_stated");
+        var summary = g.CodeSummary ? CodeSummary(fit, matched, missing) : Text(item, "summary", 600);
         if (flagged)
         {
             if (fit == "strong") fit = "partial";   // an instruction-carrying profile cannot earn the top rating
@@ -98,12 +98,24 @@ public static partial class AnalysisParser
             Summary = summary,
             MatchedSkills = matched,
             RemovedClaims = removed,
-            Gaps = flagged ? [] : Strings(item, "gaps"),   // the model's free text is not shown for a profile that gave orders
+            Gaps = g.CodeSummary ? missing : flagged ? [] : Strings(item, "gaps"),   // the model's free text is not shown for a profile that gave orders, nor when the summary is built in code
             NotStated = notStated,
             Fit = fit,
             InstructionsFound = flagged,
             Check = new SkillCheckView { Matched = found, Missing = missing, Score = score },
         };
+    }
+
+    /// <summary>
+    /// A summary made only from things our code has checked: the rating, the skills that have a real quote, and the job's skills our own
+    /// check did not find. No sentence of the model's is used, so text planted in a profile cannot reach the screen through it.
+    /// </summary>
+    static string CodeSummary(string fit, List<MatchedSkillView> matched, List<string> missing)
+    {
+        var rating = fit.Replace('_', ' ');
+        var backed = matched.Count == 0 ? "No skill could be backed by a quote from the profile." : $"Skills backed by a quote from the profile: {string.Join(", ", matched.Select(m => m.Skill).Distinct())}.";
+        var lacking = missing.Count == 0 ? "Every skill the job lists was found in the profile." : $"Skills the job lists that were not found in the profile: {string.Join(", ", missing)}.";
+        return $"Rated {rating}. {backed} {lacking}";
     }
 
     static (List<MatchedSkillView> Kept, int Removed) CheckClaims(JsonElement item, string profile, bool checkQuotes)

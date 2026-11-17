@@ -8,10 +8,13 @@ namespace FdeTracker.Api.Services.Llm;
 /// Which checks run on the model's answer. Production always uses <see cref="All"/>. The evaluation tool also runs the
 /// smaller sets on the same raw answers, so "before" and "after" differ only by the checks.
 /// </summary>
-public sealed record GuardrailOptions(bool CheckQuotes, bool LowerUnbackedRating, bool ScreenInstructions, bool LimitRatingBySkillCheck)
+/// <param name="CodeSummary">Show a summary, gaps and not-stated list built in code from the checked fields, instead of the model's own free text. Free text can carry words an attacker planted, and code cannot judge free text.</param>
+public sealed record GuardrailOptions(bool CheckQuotes, bool LowerUnbackedRating, bool ScreenInstructions, bool LimitRatingBySkillCheck, bool CodeSummary = false)
 {
     /// <summary>Everything on. This is what the API uses.</summary>
     public static readonly GuardrailOptions All = new(true, true, true, true);
+    /// <summary>Everything on, and the summary written by our code (ASSISTANT_SUMMARY=code). Safer against text planted in a profile; the wording is plainer.</summary>
+    public static readonly GuardrailOptions AllWithCodeSummary = new(true, true, true, true, true);
     /// <summary>What existed before Day 4: quotes must be real, and a rating needs one real quote.</summary>
     public static readonly GuardrailOptions Existing = new(true, true, false, false);
     /// <summary>No checks: the model's answer as it came (still has to parse).</summary>

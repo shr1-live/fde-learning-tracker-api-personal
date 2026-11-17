@@ -18,14 +18,16 @@ public sealed class AnthropicClient(HttpClient http, AppOptions options) : HttpL
     protected override HttpRequestMessage BuildRequest(string system, string user)
     {
         // No "JSON mode" switch here: the prompt asks for JSON and AnalysisParser tolerates extra words around it.
-        var body = JsonSerializer.Serialize(new
+        var payload = new Dictionary<string, object?>
         {
-            model = Options.LlmModel,
-            max_tokens = Options.LlmMaxTokens, // bounds the cost of one answer (LLM_MAX_TOKENS)
-            temperature = 0,
-            system,
-            messages = new object[] { new { role = "user", content = user } },
-        });
+            ["model"] = Options.LlmModel,
+            ["max_tokens"] = Options.LlmMaxTokens, // bounds the cost of one answer (LLM_MAX_TOKENS)
+            ["temperature"] = Options.LlmTemperature,
+            ["system"] = system,
+            ["messages"] = new object[] { new { role = "user", content = user } },
+        };
+        if (Options.LlmTopP is { } topP) payload["top_p"] = topP;
+        var body = JsonSerializer.Serialize(payload);
         // Always Anthropic's own address: LLM_BASE_URL belongs to the other provider type and is ignored here, so a stale
         // address left over from another provider can never receive the Claude key.
         var req = new HttpRequestMessage(HttpMethod.Post, DefaultBaseUrl + "/v1/messages") { Content = new StringContent(body, Encoding.UTF8, "application/json") };

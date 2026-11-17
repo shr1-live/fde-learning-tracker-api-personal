@@ -35,7 +35,13 @@ public sealed class AppOptions
     public Func<double> Jitter { get; init; } = Random.Shared.NextDouble;
     public int RateLimitPerMinute { get; init; } = 240; // all requests per address
     public int WriteLimitPerMinute { get; init; } = 40; // changes per person
-    public int LlmMaxTokens { get; init; } = 3000; // longest answer we pay for; raise it if several candidates get cut off
+    public int LlmMaxTokens { get; init; } = 3000;
+    /// <summary>0 = the most repeatable answers (right for checking and extraction). Higher = more varied, and more likely to invent.</summary>
+    public double LlmTemperature { get; init; } = 0;
+    /// <summary>Optional: only the most likely words that add up to this share are considered. Left unset unless you have a reason.</summary>
+    public double? LlmTopP { get; init; }
+    /// <summary>"model" = the model's own summary text (default). "code" = a summary built in our code from the checked fields.</summary>
+    public string AssistantSummary { get; init; } = "model"; // longest answer we pay for; raise it if several candidates get cut off
 
     static string ProviderOf(string? value)
     {
@@ -47,6 +53,9 @@ public sealed class AppOptions
     {
         string Need(string key) => c[key] is { Length: > 0 } v ? v : throw new InvalidOperationException($"Missing required setting {key}");
         string? Opt(string key) => c[key] is { Length: > 0 } v ? v : null;
+        // A decimal setting inside a range. Missing or out of range means the default: a typo must not silently turn the model wild.
+        double? Decimal(string key, double fallback, double min, double max) =>
+            double.TryParse(c[key], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d) && d >= min && d <= max ? d : fallback;
         int Num(string key, int fallback) => int.TryParse(c[key], out var n) && n > 0 ? n : fallback;
         var provider = ProviderOf(Opt("LLM_PROVIDER"));
         return new AppOptions
@@ -71,6 +80,9 @@ public sealed class AppOptions
             TaskMessageDeadlineSeconds = Num("TASK_MESSAGE_DEADLINE_SECONDS", 90),
             DbCommandTimeoutSeconds = Num("DB_COMMAND_TIMEOUT_SECONDS", 20),
             LlmMaxTokens = Num("LLM_MAX_TOKENS", 3000),
+            LlmTemperature = Decimal("LLM_TEMPERATURE", 0, 0, provider == "anthropic" ? 1 : 2) ?? 0,   // Claude accepts 0 to 1, the common API 0 to 2
+            LlmTopP = double.TryParse(c["LLM_TOP_P"], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var topP) && topP >= 0 && topP <= 1 ? topP : null, // unset, or anything out of range, means "not sent"
+            AssistantSummary = string.Equals(c["ASSISTANT_SUMMARY"], "code", StringComparison.OrdinalIgnoreCase) ? "code" : "model",
             RateLimitPerMinute = Num("RATE_LIMIT_PER_MINUTE", 240),
             WriteLimitPerMinute = Num("WRITE_LIMIT_PER_MINUTE", 40),
         };
