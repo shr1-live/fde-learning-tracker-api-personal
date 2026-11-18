@@ -7,6 +7,9 @@ using FdeTracker.Api.Common;
 
 namespace FdeTracker.Api.Services.Llm;
 
+/// <summary>The one HttpClient used for every model call (so the connection pool is shared).</summary>
+public sealed record LlmHttp(HttpClient Client);
+
 public sealed record LlmResult(string Text, int InputTokens, int OutputTokens, int LatencyMs, string Model);
 
 public interface ILlmClient
@@ -29,7 +32,9 @@ public abstract class HttpLlmClient(HttpClient http, AppOptions options) : ILlmC
 
     protected AppOptions Options => options;
     public abstract bool IsConfigured { get; }
-    public string? Model => options.LlmModel;
+    /// <summary>The model this client asks for. A client that carries its own settings (a person's own key) overrides it.</summary>
+    protected virtual string? ModelName => options.LlmModel;
+    public string? Model => ModelName;
 
     protected abstract HttpRequestMessage BuildRequest(string system, string user);
     protected abstract LlmResult Parse(string json, int latencyMs);
@@ -101,21 +106,23 @@ public abstract class HttpLlmClient(HttpClient http, AppOptions options) : ILlmC
 
     /// <summary>The model name the provider reports, falling back to the configured one.</summary>
     protected string ModelOf(JsonElement root) =>
-        root.TryGetProperty("model", out var m) && m.GetString() is { Length: > 0 } s ? s : Options.LlmModel!;
+        root.TryGetProperty("model", out var m) && m.GetString() is { Length: > 0 } s ? s : ModelName!;
 
     protected static LlmException BadFormat() => LlmException.BadFormat();
 }
 
 /// <summary>Any provider with the common /chat/completions API (Gemini, Groq, GitHub Models, Ollama, OpenAI...).</summary>
-public sealed class OpenAiCompatibleClient(HttpClient http, AppOptions options) : HttpLlmClient(http, options)
+public class OpenAiCompatibleClient(HttpClient http, AppOptions options) : HttpLlmClient(http, options)
 {
-    public override bool IsConfigured => Options.LlmBaseUrl is not null && Options.LlmApiKey is not null && Options.LlmModel is not null;
+    protected virtual string? ApiKey => Options.LlmApiKey;
+    protected virtual string? BaseUrl => Options.LlmBaseUrl;
+    public override bool IsConfigured => BaseUrl is not null && ApiKey is not null && ModelName is not null;
 
     protected override HttpRequestMessage BuildRequest(string system, string user)
     {
         var payload = new Dictionary<string, object?>
         {
-            ["model"] = Options.LlmModel,
+            ["model"] = ModelName,
             ["temperature"] = Options.LlmTemperature,
             ["max_tokens"] = Options.LlmMaxTokens, // bounds the cost of one answer (LLM_MAX_TOKENS)
             ["response_format"] = new { type = "json_object" },
@@ -123,8 +130,8 @@ public sealed class OpenAiCompatibleClient(HttpClient http, AppOptions options) 
         };
         if (Options.LlmTopP is { } topP) payload["top_p"] = topP;
         var body = JsonSerializer.Serialize(payload);
-        var req = new HttpRequestMessage(HttpMethod.Post, Options.LlmBaseUrl!.TrimEnd('/') + "/chat/completions") { Content = new StringContent(body, Encoding.UTF8, "application/json") };
-        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Options.LlmApiKey);
+        var req = new HttpRequestMessage(HttpMethod.Post, BaseUrl!.TrimEnd('/') + "/chat/completions") { Content = new StringContent(body, Encoding.UTF8, "application/json") };
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ApiKey);
         return req;
     }
 

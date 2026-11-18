@@ -39,11 +39,14 @@ builder.Services.AddSingleton<TaskRepository>();
 builder.Services.AddSingleton<TaskTools>();
 builder.Services.AddSingleton<PromptLibrary>();
 builder.Services.AddSingleton<AnalysisPipeline>();
+// One HttpClient for every model call. The client the app uses is the server's configured one, except for a request
+// that carries a person's own Gemini key (see OwnKeyMiddleware): that one talks to Gemini with that key.
+builder.Services.AddSingleton(new LlmHttp(new HttpClient(new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(5) }) { Timeout = Timeout.InfiniteTimeSpan }));
 builder.Services.AddSingleton<ILlmClient>(sp =>
 {
     var opts = sp.GetRequiredService<AppOptions>();
-    var http = new HttpClient(new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(5) }) { Timeout = Timeout.InfiniteTimeSpan };
-    return LlmClientFactory.Create(opts.LlmProvider, http, opts);
+    var http = sp.GetRequiredService<LlmHttp>().Client;
+    return new SwitchingLlmClient(LlmClientFactory.Create(opts.LlmProvider, http, opts), http, opts);
 });
 builder.Services.AddSingleton<UserService>();
 builder.Services.AddSingleton<ContentService>();
@@ -125,6 +128,7 @@ app.UseAuthentication();
 app.UseRateLimiter();
 app.UseAuthorization();
 app.UseMiddleware<CurrentUserMiddleware>();
+app.UseMiddleware<OwnKeyMiddleware>(); // after sign-in: only a signed-in person's request is ever given a key scope
 app.MapControllers();
 if (app.Environment.IsDevelopment())
 {

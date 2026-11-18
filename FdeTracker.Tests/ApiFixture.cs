@@ -48,6 +48,9 @@ public sealed record ApiResult(int Status, JsonNode? Json)
 /// <summary>Starts a real Postgres in Docker and the API against it, once for the whole test class.</summary>
 public sealed class ApiFixture : IAsyncLifetime
 {
+    /// <summary>Every test class that starts the API joins this collection, so two APIs never start at once against each other's database.</summary>
+    public const string Collection = "api";
+
     const string Secret = "test-secret-test-secret-test-secret-123456";
     const string Issuer = "https://test.supabase.co/auth/v1";
     readonly PostgreSqlContainer _pg = new PostgreSqlBuilder().WithImage("postgres:16-alpine").Build();
@@ -97,9 +100,10 @@ public sealed class ApiFixture : IAsyncLifetime
         return new JwtSecurityTokenHandler().WriteToken(jwt);
     }
 
-    public async Task<ApiResult> Call(string method, string path, TestUser? user = null, object? body = null, string? rawToken = null)
+    public async Task<ApiResult> Call(string method, string path, TestUser? user = null, object? body = null, string? rawToken = null, Dictionary<string, string>? headers = null)
     {
         using var req = new HttpRequestMessage(new HttpMethod(method), path);
+        foreach (var (name, value) in headers ?? []) req.Headers.TryAddWithoutValidation(name, value);
         if (user is not null) req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token(user));
         else if (rawToken is not null) req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", rawToken);
         if (body is not null) req.Content = new StringContent(body is string s ? s : JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
