@@ -1,5 +1,17 @@
 # Week 1 project report: recruitment assistant and model evaluation
 
+## Evidence index (every link opens the file)
+
+| Day | Evidence |
+|---|---|
+| **Day 1** LLM fundamentals and model selection | [Model comparison and recommendation](evals/day1-local-v2-comparison.md) · [Raw answers, times and tokens](evals/day1-local-v2-results.json) · [Model client: timeout, retry, error categories](../FdeTracker.Api/Services/Llm/LlmClient.cs) · [Error categories](../FdeTracker.Api/Services/Llm/Errors.cs) · [Endpoint](../FdeTracker.Api/Controllers/AssistantController.cs) · [Usage log table](../migrations/002_llm_calls.sql) · [Fixed prompt set](../evals/day1-prompts.json) |
+| **Day 2** Prompt engineering | [v1 to v4 comparison](evals/day2-local-v2-comparison.md) · [v5 to v7 comparison](evals/day2-local-v3-comparison.md) · [All prompt versions](../FdeTracker.Api/Prompts) · [Two-step chain (v7)](../FdeTracker.Api/Services/Llm/AnalysisPipeline.cs) · [Quote check and output validation](../FdeTracker.Api/Services/Llm/AnalysisParser.cs) · [Fixed test cases](../evals/day2-cases.json) · [Day 2 tests](../FdeTracker.Tests/Day2GapTests.cs) |
+| **Day 3** Structured outputs and tool calling | [Tools and argument validation](../FdeTracker.Api/Services/Tasks/TaskTools.cs) · [Tool loop, confirmation, log](../FdeTracker.Api/Services/Tasks/TaskAssistantService.cs) · [Tool prompt](../FdeTracker.Api/Prompts/tasks.v1.md) · [Tables](../migrations/005_task_assistant.sql) · [Tests](../FdeTracker.Tests/TaskToolsTests.cs) |
+| **Day 4** Evaluation and guardrails | [30-case results, before and after](evals/day4-local-comparison.md) · [Fresh-attack results](evals/day4-holdout-comparison.md) · [30 cases with expected behaviour](../evals/day4-cases.json) · [Fresh cases](../evals/day4-holdout.json) · [Guardrails](../FdeTracker.Api/Services/Llm/Guardrails.cs) · [Guardrail tests](../FdeTracker.Tests/GuardrailTests.cs) |
+| **Day 5** End to end | [README: setup, settings, errors](../README.md) · [Demo script](DEMO.md) · [Release plan](RELEASE-PLAN.md) · [Service](../FdeTracker.Api/Services/AssistantService.cs) · [All tests](../FdeTracker.Tests) |
+
+Sections 1 to 6 below explain each day: what was built, the numbers, what testing found, and what is not done.
+
 Written 2026-11-16. This report says what was built, what the evidence shows, what was found, and what is not done. It is meant to be read by someone who wants to check the claims, so every number below can be reproduced with the commands in the README.
 
 ## 1. What was built
