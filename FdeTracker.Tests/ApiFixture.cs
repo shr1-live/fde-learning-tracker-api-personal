@@ -4,7 +4,10 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using FdeTracker.Api.Services.Llm;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql;
 using Testcontainers.PostgreSql;
@@ -14,6 +17,28 @@ using Xunit.Sdk;
 namespace FdeTracker.Tests;
 
 public sealed record TestUser(Guid Id, string Email);
+
+/// <summary>A scripted model: each test sets what it answers and can read what it was sent.</summary>
+public sealed class FakeLlm : ILlmClient
+{
+    public bool Configured { get; set; } = true;
+    public bool IsConfigured => Configured;
+    public string? Model => "fake-model";
+    public Func<string, string, LlmResult>? Handler { get; set; }
+    public string LastSystem { get; private set; } = "";
+    public string LastUser { get; private set; } = "";
+    public int Calls { get; private set; }
+
+    /// <summary>How long the next answers take. The wait honours cancellation, like a real provider call.</summary>
+    public TimeSpan Delay { get; set; }
+
+    public async Task<LlmResult> CompleteAsync(string system, string user, CancellationToken ct)
+    {
+        LastSystem = system; LastUser = user; Calls++;
+        if (Delay > TimeSpan.Zero) await Task.Delay(Delay, ct);
+        return (Handler ?? throw new InvalidOperationException("No fake answer set")).Invoke(system, user);
+    }
+}
 
 public sealed record ApiResult(int Status, JsonNode? Json)
 {
@@ -43,9 +68,20 @@ public sealed class ApiFixture : IAsyncLifetime
         Environment.SetEnvironmentVariable("ALLOWED_DOMAIN", "fiftyfivetech.io");
         Environment.SetEnvironmentVariable("FREE_SEATS", "3");
         Environment.SetEnvironmentVariable("CORS_ORIGINS", "https://app.example");
-        _factory = new WebApplicationFactory<Program>();
+        Environment.SetEnvironmentVariable("LLM_DAILY_CAP", "20");
+        // The suite fires hundreds of requests in seconds; production keeps the defaults (240 per address, 40 writes per person).
+        Environment.SetEnvironmentVariable("RATE_LIMIT_PER_MINUTE", "100000");
+        Environment.SetEnvironmentVariable("TASK_MESSAGE_DEADLINE_SECONDS", "2"); // short, so the deadline test does not take a minute; the fake model answers at once
+        Environment.SetEnvironmentVariable("WRITE_LIMIT_PER_MINUTE", "100000");
+        _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(b => b.ConfigureServices(s =>
+        {
+            s.RemoveAll<ILlmClient>(); // tests never call a real model
+            s.AddSingleton<ILlmClient>(Llm);
+        }));
         _client = _factory.CreateClient();
     }
+
+    public FakeLlm Llm { get; } = new();
 
     public async Task DisposeAsync()
     {
@@ -75,6 +111,34 @@ public sealed class ApiFixture : IAsyncLifetime
     }
 
     public Task<HttpResponseMessage> Raw(string path) => _client.GetAsync(path);
+
+    /// <summary>Uploads one file as a multipart form, like the browser does. The type we claim is deliberately useless: the server must not trust it.</summary>
+    public async Task<ApiResult> Upload(string path, TestUser user, string fileName, byte[] bytes, string? label = null)
+    {
+        using var form = new MultipartFormDataContent();
+        var part = new ByteArrayContent(bytes);
+        part.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+        form.Add(part, "file", fileName);
+        if (label is not null) form.Add(new StringContent(label), "label");
+        using var req = new HttpRequestMessage(HttpMethod.Post, path) { Content = form };
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token(user));
+        using var res = await _client.SendAsync(req);
+        var text = await res.Content.ReadAsStringAsync();
+        JsonNode? json = null;
+        try { json = string.IsNullOrEmpty(text) ? null : JsonNode.Parse(text); } catch (JsonException) { /* not json */ }
+        return new ApiResult((int)res.StatusCode, json);
+    }
+
+    public sealed record FileResult(int Status, string? ContentType, string? Disposition, string? NoSniff, string? Csp, byte[] Body);
+
+    public async Task<FileResult> Download(string path, TestUser? user)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Get, path);
+        if (user is not null) req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token(user));
+        using var res = await _client.SendAsync(req);
+        string? H(string name) => res.Headers.TryGetValues(name, out var v) ? v.FirstOrDefault() : null;
+        return new FileResult((int)res.StatusCode, res.Content.Headers.ContentType?.ToString(), res.Content.Headers.ContentDisposition?.ToString(), H("X-Content-Type-Options"), H("Content-Security-Policy"), await res.Content.ReadAsByteArrayAsync());
+    }
 
     public Task<HttpResponseMessage> GetFromOrigin(string path, string origin)
     {

@@ -21,6 +21,15 @@ public static class ErrorBody
         ctx.Response.StatusCode = status;
         return ctx.Response.WriteAsJsonAsync(new { error = message });
     }
+
+    /// <summary>The same body, plus the category, kind, retry flag and wait when the error carries them. Old callers that only read "error" are not affected.</summary>
+    public static Task Write(HttpContext ctx, ApiException e)
+    {
+        if (e.Category is null) return Write(ctx, e.Status, e.Message);
+        ctx.Response.StatusCode = e.Status;
+        if (e.RetryAfterSeconds is { } s) ctx.Response.Headers.RetryAfter = ((int)Math.Ceiling(s)).ToString();
+        return ctx.Response.WriteAsJsonAsync(new { error = e.Message, category = e.Category, retryable = e.Retryable ?? false, kind = e.Kind, retry_after_seconds = e.RetryAfterSeconds });
+    }
 }
 
 public sealed class ErrorHandlingMiddleware(RequestDelegate next, ILogger<ErrorHandlingMiddleware> logger)
@@ -28,7 +37,7 @@ public sealed class ErrorHandlingMiddleware(RequestDelegate next, ILogger<ErrorH
     public async Task Invoke(HttpContext ctx)
     {
         try { await next(ctx); }
-        catch (ApiException e) when (!ctx.Response.HasStarted) { await ErrorBody.Write(ctx, e.Status, e.Message); }
+        catch (ApiException e) when (!ctx.Response.HasStarted) { await ErrorBody.Write(ctx, e); }
         catch (BadHttpRequestException e) when (!ctx.Response.HasStarted)
         {
             await ErrorBody.Write(ctx, e.StatusCode, e.StatusCode == 413 ? "Request too large" : "Invalid request");
@@ -46,9 +55,17 @@ public sealed class ErrorHandlingMiddleware(RequestDelegate next, ILogger<ErrorH
 public sealed class SecurityMiddleware(RequestDelegate next, IHostEnvironment env)
 {
     public const long MaxBody = 64 * 1024;
+    public const long UploadMaxBody = 2_800_000; // one 2 MB file plus the form wrapper
+
+    /// <summary>Only the submission file upload may exceed 64 KB; every other route keeps the small cap.</summary>
+    static readonly System.Text.RegularExpressions.Regex UploadRoute = new(@"^/api/submissions/[a-z0-9-]{3,60}/files\z", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(50));
+
+    static long LimitFor(HttpRequest request) =>
+        HttpMethods.IsPost(request.Method) && UploadRoute.IsMatch(request.Path.Value ?? "") ? UploadMaxBody : MaxBody;
 
     public Task Invoke(HttpContext ctx)
     {
+        var limit = LimitFor(ctx.Request);
         var h = ctx.Response.Headers;
         h["X-Content-Type-Options"] = "nosniff";
         h["X-Frame-Options"] = "DENY";
@@ -56,8 +73,8 @@ public sealed class SecurityMiddleware(RequestDelegate next, IHostEnvironment en
         if (!env.IsDevelopment()) h["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"; // the dev docs page needs scripts
         h["Strict-Transport-Security"] = "max-age=15552000; includeSubDomains";
         h["Cross-Origin-Resource-Policy"] = "same-origin";
-        if (ctx.Request.ContentLength > MaxBody) return ErrorBody.Write(ctx, 413, "Request too large");
-        if (ctx.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } f) f.MaxRequestBodySize = MaxBody;
+        if (ctx.Request.ContentLength > limit) return ErrorBody.Write(ctx, 413, "Request too large");
+        if (ctx.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } f) f.MaxRequestBodySize = limit;
         return next(ctx);
     }
 }
