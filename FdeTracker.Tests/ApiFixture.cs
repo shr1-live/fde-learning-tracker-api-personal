@@ -29,10 +29,14 @@ public sealed class FakeLlm : ILlmClient
     public string LastUser { get; private set; } = "";
     public int Calls { get; private set; }
 
-    public Task<LlmResult> CompleteAsync(string system, string user, CancellationToken ct)
+    /// <summary>How long the next answers take. The wait honours cancellation, like a real provider call.</summary>
+    public TimeSpan Delay { get; set; }
+
+    public async Task<LlmResult> CompleteAsync(string system, string user, CancellationToken ct)
     {
         LastSystem = system; LastUser = user; Calls++;
-        return Task.FromResult((Handler ?? throw new InvalidOperationException("No fake answer set")).Invoke(system, user));
+        if (Delay > TimeSpan.Zero) await Task.Delay(Delay, ct);
+        return (Handler ?? throw new InvalidOperationException("No fake answer set")).Invoke(system, user);
     }
 }
 
@@ -44,6 +48,9 @@ public sealed record ApiResult(int Status, JsonNode? Json)
 /// <summary>Starts a real Postgres in Docker and the API against it, once for the whole test class.</summary>
 public sealed class ApiFixture : IAsyncLifetime
 {
+    /// <summary>Every test class that starts the API joins this collection, so two APIs never start at once against each other's database.</summary>
+    public const string Collection = "api";
+
     const string Secret = "test-secret-test-secret-test-secret-123456";
     const string Issuer = "https://test.supabase.co/auth/v1";
     readonly PostgreSqlContainer _pg = new PostgreSqlBuilder().WithImage("postgres:16-alpine").Build();
@@ -65,6 +72,10 @@ public sealed class ApiFixture : IAsyncLifetime
         Environment.SetEnvironmentVariable("FREE_SEATS", "3");
         Environment.SetEnvironmentVariable("CORS_ORIGINS", "https://app.example");
         Environment.SetEnvironmentVariable("LLM_DAILY_CAP", "20");
+        // The suite fires hundreds of requests in seconds; production keeps the defaults (240 per address, 40 writes per person).
+        Environment.SetEnvironmentVariable("RATE_LIMIT_PER_MINUTE", "100000");
+        Environment.SetEnvironmentVariable("TASK_MESSAGE_DEADLINE_SECONDS", "2"); // short, so the deadline test does not take a minute; the fake model answers at once
+        Environment.SetEnvironmentVariable("WRITE_LIMIT_PER_MINUTE", "100000");
         _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(b => b.ConfigureServices(s =>
         {
             s.RemoveAll<ILlmClient>(); // tests never call a real model
@@ -89,9 +100,10 @@ public sealed class ApiFixture : IAsyncLifetime
         return new JwtSecurityTokenHandler().WriteToken(jwt);
     }
 
-    public async Task<ApiResult> Call(string method, string path, TestUser? user = null, object? body = null, string? rawToken = null)
+    public async Task<ApiResult> Call(string method, string path, TestUser? user = null, object? body = null, string? rawToken = null, Dictionary<string, string>? headers = null)
     {
         using var req = new HttpRequestMessage(new HttpMethod(method), path);
+        foreach (var (name, value) in headers ?? []) req.Headers.TryAddWithoutValidation(name, value);
         if (user is not null) req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token(user));
         else if (rawToken is not null) req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", rawToken);
         if (body is not null) req.Content = new StringContent(body is string s ? s : JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
@@ -103,6 +115,34 @@ public sealed class ApiFixture : IAsyncLifetime
     }
 
     public Task<HttpResponseMessage> Raw(string path) => _client.GetAsync(path);
+
+    /// <summary>Uploads one file as a multipart form, like the browser does. The type we claim is deliberately useless: the server must not trust it.</summary>
+    public async Task<ApiResult> Upload(string path, TestUser user, string fileName, byte[] bytes, string? label = null)
+    {
+        using var form = new MultipartFormDataContent();
+        var part = new ByteArrayContent(bytes);
+        part.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+        form.Add(part, "file", fileName);
+        if (label is not null) form.Add(new StringContent(label), "label");
+        using var req = new HttpRequestMessage(HttpMethod.Post, path) { Content = form };
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token(user));
+        using var res = await _client.SendAsync(req);
+        var text = await res.Content.ReadAsStringAsync();
+        JsonNode? json = null;
+        try { json = string.IsNullOrEmpty(text) ? null : JsonNode.Parse(text); } catch (JsonException) { /* not json */ }
+        return new ApiResult((int)res.StatusCode, json);
+    }
+
+    public sealed record FileResult(int Status, string? ContentType, string? Disposition, string? NoSniff, string? Csp, byte[] Body);
+
+    public async Task<FileResult> Download(string path, TestUser? user)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Get, path);
+        if (user is not null) req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token(user));
+        using var res = await _client.SendAsync(req);
+        string? H(string name) => res.Headers.TryGetValues(name, out var v) ? v.FirstOrDefault() : null;
+        return new FileResult((int)res.StatusCode, res.Content.Headers.ContentType?.ToString(), res.Content.Headers.ContentDisposition?.ToString(), H("X-Content-Type-Options"), H("Content-Security-Policy"), await res.Content.ReadAsByteArrayAsync());
+    }
 
     public Task<HttpResponseMessage> GetFromOrigin(string path, string origin)
     {

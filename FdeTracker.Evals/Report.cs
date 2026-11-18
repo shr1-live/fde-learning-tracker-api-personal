@@ -12,11 +12,11 @@ public static class Report
     }
 
     /// <summary>Markdown report plus a recommendation. Rule: highest pass rate wins; ties go to the lower median latency.</summary>
-    public static string Day1(List<CaseResult> results, string[] models, PromptSet set, string label)
+    public static string Day1(List<CaseResult> results, string[] models, PromptSet set, string label, IReadOnlyDictionary<string, (double In, double Out)>? prices = null)
     {
         var sb = new StringBuilder();
         sb.AppendLine("# Day 1: model comparison on a fixed prompt set").AppendLine();
-        sb.AppendLine($"Run on {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC. Same {set.Cases.Count} prompts, same system prompt, temperature 0, for every model. Prompts: `evals/day1-prompts.json`. Raw results: `docs/evals/day1-{label}-results.json`.").AppendLine();
+        sb.AppendLine($"Run on {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC. Prompt set version {set.Version}: the same {set.Cases.Count} prompts, same system prompt, temperature 0, for every model. Prompts: `evals/day1-prompts.json`. Raw results: `docs/evals/day1-{label}-results.json`.").AppendLine();
 
         var stats = models.Select(m =>
         {
@@ -31,8 +31,11 @@ public static class Report
         }).ToList();
 
         sb.AppendLine("## Summary").AppendLine();
-        sb.AppendLine("| Model | Passed | Errors | Median latency | Slowest | Input tokens | Output tokens |").AppendLine("|---|---|---|---|---|---|---|");
-        foreach (var s in stats) sb.AppendLine($"| {s.Model} | {s.Passed}/{s.Total} | {s.Errors} | {s.Median / 1000:0.0} s | {s.Max / 1000.0:0.0} s | {s.TokensIn} | {s.TokensOut} |");
+        // Cost = tokens x the price set in targets.json. No price set means no number (a local model has price 0; an unknown one is shown as "not set", never guessed).
+        string Cost(string model, int tin, int tout) =>
+            prices is not null && prices.TryGetValue(model, out var p) ? (p.In == 0 && p.Out == 0 ? "$0 (local)" : $"${(tin * p.In + tout * p.Out) / 1_000_000:0.0000}") : "not set";
+        sb.AppendLine("| Model | Passed | Errors | Median latency | Slowest | Input tokens | Output tokens | Cost of this set |").AppendLine("|---|---|---|---|---|---|---|---|");
+        foreach (var s in stats) sb.AppendLine($"| {s.Model} | {s.Passed}/{s.Total} | {s.Errors} | {s.Median / 1000:0.0} s | {s.Max / 1000.0:0.0} s | {s.TokensIn} | {s.TokensOut} | {Cost(s.Model, s.TokensIn, s.TokensOut)} |");
 
         sb.AppendLine().AppendLine("## Per prompt (pass / fail)").AppendLine();
         sb.AppendLine("| Prompt | Kind | " + string.Join(" | ", models) + " |").AppendLine("|---|---|" + string.Join("|", models.Select(_ => "---")) + "|");
@@ -59,7 +62,7 @@ public static class Report
         foreach (var o in others) sb.Append($", against {o.Model} at {o.Passed} of {o.Total} and {o.Median / 1000:0.0} s");
         sb.AppendLine(".").AppendLine();
         sb.AppendLine("Reasons, in order: (1) answer quality on this set, because a wrong answer costs more than a slow one; (2) speed, as the tiebreak; (3) reliability, since a model with errors or timeouts is ruled out first. Token counts show the cost side: a hosted model would be billed on the input and output tokens above.").AppendLine();
-        sb.AppendLine("Limits: 10 prompts is a small sample and the checks are simple keyword rules, so treat this as a first comparison. Speed and cost depend on where a model runs: a local computer, or a hosted provider that bills per token. The first call to each model includes loading it into memory, so \"slowest\" is inflated. The keyword rules can be too strict: one model's hallucination-trap answer (\"not specified in the given information\") is arguably a fair refusal that the list of accepted phrases missed; the rules were not changed after seeing results. Rerun this after changing a model or prompt.");
+        sb.AppendLine($"Limits: {set.Cases.Count} prompts is a small sample and the checks are simple keyword rules, so treat this as a first comparison. Speed and cost depend on where a model runs: a local computer, or a hosted provider that bills per token. The first call to each model includes loading it into memory, so \"slowest\" is inflated. The keyword rules can still be too strict or too loose. Prompt set version 2 widened the accepted wording for refusals and added prompts; this was decided before the run, after set version 1 marked a fair refusal wrong, and the version 1 run is kept as a separate run for comparison. Rerun this after changing a model or prompt.");
         return sb.ToString();
     }
 
