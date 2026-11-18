@@ -19,10 +19,14 @@ public sealed class ContentController(ContentService content) : ApiControllerBas
     public async Task<IActionResult> Get(Guid id) => Ok(await content.Get(CurrentUser, id));
 
     [HttpPost("content")]
-    public async Task<IActionResult> Create(CreateContentRequest body) => StatusCode(201, await content.Create(CurrentUser.Id, body));
+    public async Task<IActionResult> Create(CreateContentRequest body) => StatusCode(201, await content.Create(CurrentUser, body));
 
     [HttpPatch("content/{id}")]
-    public async Task<IActionResult> Update(Guid id, PatchContentRequest body) => Ok(await content.Update(CurrentUser.Id, id, body));
+    public async Task<IActionResult> Update(Guid id, PatchContentRequest body) => Ok(await content.Update(CurrentUser, id, body));
+
+    /// <summary>The review team marks an approved item as recommended, or takes the mark off.</summary>
+    [HttpPost("content/{id}/recommend"), RequireRole("reviewer", "admin")]
+    public async Task<IActionResult> Recommend(Guid id, RecommendRequest body) => Ok(await content.Recommend(CurrentUser, id, body.Recommended));
 
     [HttpDelete("content/{id}")]
     public async Task<IActionResult> Delete(Guid id)

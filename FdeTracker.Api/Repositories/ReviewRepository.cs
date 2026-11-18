@@ -9,7 +9,8 @@ public sealed class ReviewRepository
     public Task<List<ReviewQueueItemView>> Queue(Session s) =>
         s.Query<ReviewQueueItemView>(
             """
-            select c.id, c.title, c.kind, c.stack_id, c.submitted_at, t.slug as topic, coalesce(u.display_name, split_part(u.email,'@',1)) as author
+            select c.id, c.title, c.kind, c.url, c.summary, c.stack_id, c.submitted_at, t.slug as topic, t.title as topic_title,
+                   coalesce(u.display_name, split_part(u.email,'@',1)) as author
             from content_items c join topics t on t.id = c.topic_id join app_users u on u.id = c.author_id
             where c.status = 'in_review' order by c.submitted_at limit 100
             """);

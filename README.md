@@ -179,6 +179,15 @@ A person hands in a task (for example a Week 1 day) with **proof**, and reviewer
 - **Roles:** a member sees and edits only their own work. Reviewers review: they cannot create or change submissions (403), only read, review and download submitted work. The admin also takes part, so can submit as well. Reviewers and admins see everyone's submitted work (never drafts) and decide on it. A file can be downloaded by its owner and, once submitted, by reviewers and admins; for anyone else it does not exist.
 - **Safety:** changes are serialised per person (so parallel uploads cannot pass the storage cap), only the upload route may carry more than 64 KB, and every action is written to the audit log.
 
+## Batches, shared feed and roles
+
+- **Roles:** `member` (a learner), `reviewer` (checks other people's work) and `admin` (the owner account set by `ADMIN_EMAIL`). The admin sets `member` or `reviewer` for anyone except the owner account (`POST /api/admin/users/{id}/role`); nobody else can become admin.
+- **Batches:** a group of learners who start on the same day. The admin creates them (`POST /api/admin/batches` with `{name, starts_on}`; `starts_on` is `YYYY-MM-DD` between 2020-01-01 and 2100-12-31; a name already in use gives 409) and puts a person in one or takes them out (`POST /api/admin/users/{id}/batch` with `{batch_id}` or `{batch_id: null}`; an unknown batch gives 404). Admin and reviewers can read the list (`GET /api/admin/batches`: `id, name, starts_on, members`, latest start first). `GET /api/me` shows the person's `batch` (`{id, name, starts_on}`) or `null`, and the admin's user list shows `batch_id` and `batch_name`.
+- **Shared feed:** everyone approved reads the same feed of approved items (`GET /api/feed`). `sort` is `newest` (default, pages with the `before` cursor), `oldest`, `title` or `recommended` (recommended items first, then newest); the last three return one page and `next` is null. `limit` is 1 to 50. Items show the author's display name, never their role.
+- **Publishing:** a member's submission waits in the review queue (`in_review`). A reviewer's or admin's own submission is published at once (logged as `content.auto_approved`).
+- **Recommended:** reviewers and the admin mark an approved item as recommended, or take the mark off (`POST /api/content/{id}/recommend` with `{recommended: true|false}`; a member gets 403, an item that is not approved gives 409).
+- Every admin change and every recommendation is written to the audit log.
+
 ## Tests
 
 `dotnet test` runs the integration tests against a throwaway Postgres in Docker (Docker must be running) and the client tests against a fake HTTP layer (no network, no key, no cost). The model is always scripted in tests.
@@ -207,7 +216,8 @@ dotnet test        # needs Docker running: starts a throwaway Postgres
 |---|---|---|
 | GET | `/health`, `/api/stacks`, `/api/topics` | public |
 | GET / PATCH | `/api/me` | signed in (PATCH: approved) |
-| GET | `/api/feed?topic=&stack=&limit=&before=` | approved |
+| GET | `/api/feed?topic=&stack=&sort=&limit=&before=` | approved |
+| POST | `/api/content/{id}/recommend` | reviewer, admin |
 | GET / POST | `/api/content/mine`, `/api/content/{id}`, `/api/content` | approved |
 | PATCH / DELETE | `/api/content/{id}` | author |
 | GET | `/api/review/queue` | reviewer, admin |
@@ -226,4 +236,6 @@ dotnet test        # needs Docker running: starts a throwaway Postgres
 | GET | `/api/submissions/items/{id}/file` | owner; reviewers and admins once submitted |
 | GET | `/api/review/submissions[?status=]`, `/counts`, `/{id}` | reviewer, admin |
 | POST | `/api/review/submissions/{id}` | reviewer, admin (not for their own work) |
-| GET / POST | `/api/admin/users`, `/api/admin/users/{id}/access`, `/api/admin/users/{id}/role` | admin |
+| GET / POST | `/api/admin/users`, `/api/admin/users/{id}/access`, `/api/admin/users/{id}/role`, `/api/admin/users/{id}/batch` | admin |
+| GET | `/api/admin/batches` | admin, reviewer |
+| POST | `/api/admin/batches` | admin |

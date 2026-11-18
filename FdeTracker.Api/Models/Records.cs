@@ -16,6 +16,7 @@ public sealed class ContentRecord
     public string? BodyMd { get; set; }
     public string Status { get; set; } = "";
     public Guid AuthorId { get; set; }
+    public bool Recommended { get; set; }
 }
 
 /// <summary>The stored columns the edit rules need.</summary>

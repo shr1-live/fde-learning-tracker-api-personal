@@ -43,6 +43,14 @@ public sealed class FeedQuery
 {
     [RegularExpression(ContentPatterns.Topic)] public string? Topic { get; set; }
     [RegularExpression("^(general|dotnet|node|java|python)\\z")] public string? Stack { get; set; }
-    [Range(1, 30)] public int Limit { get; set; } = 15;
+    [Range(1, 50)] public int Limit { get; set; } = 15;
+    /// <summary>Paging cursor. Only used with sort=newest; other sorts return one page and next = null.</summary>
     [StringLength(120)] public string? Before { get; set; }
+    /// <summary>newest (default), oldest, title, or recommended (recommended first, then newest).</summary>
+    [RegularExpression("^(newest|oldest|title|recommended)\\z")] public string? Sort { get; set; }
+}
+
+public sealed class RecommendRequest
+{
+    public required bool Recommended { get; set; }
 }

@@ -8,6 +8,7 @@ public sealed class AppUser
     public string? StackId { get; set; }
     public string Role { get; set; } = "member";
     public string AccessStatus { get; set; } = "pending";
+    public Guid? BatchId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime LastSeenAt { get; set; }
 
