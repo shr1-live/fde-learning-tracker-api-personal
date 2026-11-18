@@ -37,7 +37,7 @@ public static class Day1Runner
         foreach (var target in targets)
         {
             var model = target.Name; // results are labelled with the target name
-            var client = LlmClientFactory.Create(target.Provider, http, new AppOptions { LlmProvider = target.Provider, LlmBaseUrl = string.IsNullOrWhiteSpace(target.BaseUrl) ? null : target.BaseUrl, LlmApiKey = target.ApiKey, LlmModel = target.Model, LlmTimeoutSeconds = timeoutSeconds });
+            var client = LlmClientFactory.Create(target.Provider, http, new AppOptions { LlmProvider = target.Provider, LlmBaseUrl = string.IsNullOrWhiteSpace(target.BaseUrl) ? null : target.BaseUrl, LlmApiKey = target.ApiKey, LlmModel = target.Model, LlmTimeoutSeconds = timeoutSeconds, LlmTotalTimeoutSeconds = timeoutSeconds });
             foreach (var c in set.Cases)
             {
                 Console.Write($"{model,-14} {c.Id,-20} ");

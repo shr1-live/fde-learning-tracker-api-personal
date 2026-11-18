@@ -9,7 +9,7 @@ using FdeTracker.Api.ViewModels;
 namespace FdeTracker.Api.Services;
 
 /// <summary>Recruitment candidate analysis: builds the prompt, calls the model, then checks the answer before anyone sees it.</summary>
-public sealed class AssistantService(Db db, ILlmClient llm, PromptLibrary prompts, LlmCallRepository calls, AppOptions options, ILogger<AssistantService> logger)
+public sealed class AssistantService(Db db, ILlmClient llm, AnalysisPipeline pipeline, LlmCallRepository calls, AppOptions options, ILogger<AssistantService> logger)
 {
     public async Task<AssistantUsageView> Usage(Guid userId) => new()
     {
@@ -35,7 +35,7 @@ public sealed class AssistantService(Db db, ILlmClient llm, PromptLibrary prompt
         LlmResult result;
         try
         {
-            result = await llm.CompleteAsync(prompts.System(version), BuildUserMessage(req), ct);
+            result = await pipeline.Run(version, req.JobDescription, req.Candidates, ct);
         }
         catch (LlmException e)
         {

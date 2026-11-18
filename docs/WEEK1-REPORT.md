@@ -50,6 +50,16 @@ Four stored prompt versions (`FdeTracker.Api/Prompts/analyze.v1.md` to `v4.md`) 
 
 **Decision taken from the data:** version 4 (version 2 plus an explicit rule that profile text is data, never instructions) is now the default because it is best on the model in use (qwen2.5:3b). The smaller model tells a different story: version 4 is worst-but-one there and version 2 wins. So the best prompt depends on the model, and the comparison must be re-run whenever the model changes. The earlier run chose version 2 on five candidates; with eight candidates and batching the ranking changed, which is a reason not to trust a small test set. Every version stays selectable per request.
 
+**Later additions: reasoning, few-shot, a two-step chain and clarifying questions** (`docs/evals/day2-local-v3-comparison.md`, same 8 candidates, run twice, qwen2.5:3b):
+
+| Version | Technique | Checks passed | Repeatable | Asks a question when it cannot judge | Gives reasoning |
+|---|---|---|---|---|---|
+| v5 | reasoning before the rating, plus clarifying questions | 79% | 3 of 8 | 1 of 4 | 11 of 16 |
+| v6 | v5 plus three worked examples (few-shot) | 63% | 8 of 8 | 2 of 4 | 8 of 16 |
+| v7 | two-step chain: extract quoted facts, then rate from the facts only | 64% | 7 of 8 | 0 of 4 | 8 of 16 |
+
+On this small model none of them beat v4 (94%), so v4 stays the default. The few-shot version was the most repeatable but copied the examples' style and rated more cautiously; the reasoning version produced reasoning for most candidates but its ratings varied between runs; the chain was safe by design (step 2 never sees the profile, only quoted facts) but the 3B model lost detail between the steps. Clarifying questions were rarely asked by the model itself, which is why the code-built mode (`ASSISTANT_SUMMARY=code`) generates them from the job skills our own check did not find. These techniques usually help larger models; that needs the hosted-model run.
+
 Criteria: consistent output structure (enforced and validated), prompt versions stored (files), test cases repeatable (fixed file, run twice), missing information identified (rating "insufficient information" and a "not stated" list), output grounded (a claim without a real quote from the profile is removed and reported).
 
 ### Day 3: structured outputs and tool calling

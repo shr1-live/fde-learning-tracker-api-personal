@@ -38,6 +38,7 @@ builder.Services.AddSingleton<SubmissionRepository>();
 builder.Services.AddSingleton<TaskRepository>();
 builder.Services.AddSingleton<TaskTools>();
 builder.Services.AddSingleton<PromptLibrary>();
+builder.Services.AddSingleton<AnalysisPipeline>();
 builder.Services.AddSingleton<ILlmClient>(sp =>
 {
     var opts = sp.GetRequiredService<AppOptions>();

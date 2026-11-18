@@ -84,6 +84,23 @@ public sealed class EnhancementTests
         Assert.Contains(warnings, w => w.Contains("contains instructions"));
     }
 
+    // ---------- proof links
+
+    [Theory]
+    [InlineData("https://github.com/shr1-live/fde-tracker-api/blob/main/README.md", true)]
+    [InlineData("https://example.com", true)]
+    [InlineData("https://example.com:8443/a?b=c#d", true)]
+    [InlineData("http://example.com", false)]                       // not https
+    [InlineData("javascript:alert(1)", false)]
+    [InlineData("ftp://example.com/a", false)]
+    [InlineData("https://", false)]                                 // no host
+    [InlineData("https://user:pass@example.com/x", false)]          // a password stored in a link
+    [InlineData("https://github.com@evil.example/x", false)]        // shows one name, goes to another
+    [InlineData("https://example.com/a b", false)]                  // whitespace
+    [InlineData("https://example.com/a\nb", false)]                 // a line break
+    public void A_proof_link_must_be_a_plain_https_address(string url, bool allowed) =>
+        Assert.Equal(allowed, FdeTracker.Api.Models.Requests.HttpsUrlAttribute.IsAllowed(url));
+
     // ---------- settings
 
     static AppOptions Opts(params (string Key, string? Value)[] values)

@@ -85,6 +85,9 @@ public static partial class AnalysisParser
             warnings.Add($"{person.Name}: rating lowered because our own skill check found only {score}% of the job's skills in the profile.");
         }
         var notStated = g.CodeSummary ? [] : Strings(item, "not_stated");
+        // The model's reasoning and questions are free text, like the summary: they are not shown for a profile that gave orders, nor when the summary is built in code.
+        var reasoning = g.CodeSummary || flagged ? "" : Text(item, "reasoning", 400);
+        var questions = g.CodeSummary ? CodeQuestions(fit, missing) : flagged ? [] : Strings(item, "questions").Take(3).Select(q => q.Length > 200 ? q[..200] : q).ToList();
         var summary = g.CodeSummary ? CodeSummary(fit, matched, missing) : Text(item, "summary", 600);
         if (flagged)
         {
@@ -102,6 +105,8 @@ public static partial class AnalysisParser
             NotStated = notStated,
             Fit = fit,
             InstructionsFound = flagged,
+            Reasoning = reasoning,
+            ClarifyingQuestions = questions,
             Check = new SkillCheckView { Matched = found, Missing = missing, Score = score },
         };
     }
@@ -116,6 +121,15 @@ public static partial class AnalysisParser
         var backed = matched.Count == 0 ? "No skill could be backed by a quote from the profile." : $"Skills backed by a quote from the profile: {string.Join(", ", matched.Select(m => m.Skill).Distinct())}.";
         var lacking = missing.Count == 0 ? "Every skill the job lists was found in the profile." : $"Skills the job lists that were not found in the profile: {string.Join(", ", missing)}.";
         return $"Rated {rating}. {backed} {lacking}";
+    }
+
+    /// <summary>Questions built by our code when the summary is: one per job skill our own check did not find (at most three), and a general one for a profile with nothing to judge.</summary>
+    static List<string> CodeQuestions(string fit, List<string> missing)
+    {
+        if (fit == "strong") return [];
+        var q = missing.Take(3).Select(s => $"Can you describe your experience with {s}?").ToList();
+        if (q.Count == 0 && fit == "insufficient_information") q.Add("Can you share more detail about the work you have done?");
+        return q;
     }
 
     static (List<MatchedSkillView> Kept, int Removed) CheckClaims(JsonElement item, string profile, bool checkQuotes)
@@ -194,6 +208,19 @@ public static class PromptText
             var c = candidates[i];
             var name = OneLine(Escape(c.Name)).Replace('"', '\'');
             sb.AppendLine($"<candidate id=\"{i + 1}\" name=\"{name}\">").AppendLine(Escape(c.Profile)).AppendLine("</candidate>");
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>The step-2 message: the job, then each candidate's checked facts (as escaped JSON data). The profiles themselves are not sent again.</summary>
+    public static string FactsMessage(string jobDescription, IReadOnlyList<CandidateInput> candidates, IReadOnlyList<string> factsJson)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("<job_description>").AppendLine(Escape(jobDescription)).AppendLine("</job_description>");
+        for (var i = 0; i < candidates.Count; i++)
+        {
+            var name = OneLine(Escape(candidates[i].Name)).Replace('"', '\'');
+            sb.AppendLine($"<facts id=\"{i + 1}\" name=\"{name}\">").AppendLine(Escape(factsJson[i])).AppendLine("</facts>");
         }
         return sb.ToString();
     }

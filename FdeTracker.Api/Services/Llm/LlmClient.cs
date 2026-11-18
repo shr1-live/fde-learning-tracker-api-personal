@@ -60,14 +60,15 @@ public abstract class HttpLlmClient(HttpClient http, AppOptions options) : ILlmC
         try
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeout.CancelAfter(left < limit ? left : limit);
+            var allowed = left < limit ? left : limit;
+            timeout.CancelAfter(allowed);
             using var req = BuildRequest(system, user);
             using var res = await http.SendAsync(req, timeout.Token);
             var text = await res.Content.ReadAsStringAsync(timeout.Token);
             if (res.IsSuccessStatusCode) return Parse(text, (int)clock.ElapsedMilliseconds);
             throw LlmException.FromStatus((int)res.StatusCode, RetryAfterOf(res, text));
         }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw LlmException.Timeout(options.LlmTimeoutSeconds); }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw LlmException.Timeout((int)Math.Ceiling((left < limit ? left : limit).TotalSeconds)); } // the real limit, not the configured one
         catch (HttpRequestException) { throw LlmException.Network(); }
     }
 

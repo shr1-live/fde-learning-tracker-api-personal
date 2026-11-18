@@ -42,10 +42,11 @@ public static class Day2Report
         foreach (var model in models)
         {
             sb.AppendLine($"## Model: {model}").AppendLine();
-            sb.AppendLine("| Version | Usable calls | Grounded | Fit sensible | No invented skills | Missing info shown | Repeatable | Overall |").AppendLine("|---|---|---|---|---|---|---|---|");
+            sb.AppendLine("| Version | Usable calls | Grounded | Fit sensible | No invented skills | Missing info shown | Repeatable | Overall | Asks a question when info is thin | Gives reasoning |").AppendLine("|---|---|---|---|---|---|---|---|---|---|");
+            var thin = cases.Candidates.Where(c => c.Expect.Incomplete).Select(c => c.Name).ToHashSet();
             var stats = versions.Select(v => Summarise(rows, model, v)).ToList();
             foreach (var s in stats)
-                sb.AppendLine($"| {s.Version} | {s.CallsOk}/{s.Calls} | {s.Grounded}/{s.Rows} | {s.FitOk}/{s.Rows} | {s.Clean}/{s.Rows} | {s.IncompleteOk}/{s.Rows} | {s.Consistent}/{s.People} | {Percent(s.Overall, s.MaxOverall)} |");
+                sb.AppendLine($"| {s.Version} | {s.CallsOk}/{s.Calls} | {s.Grounded}/{s.Rows} | {s.FitOk}/{s.Rows} | {s.Clean}/{s.Rows} | {s.IncompleteOk}/{s.Rows} | {s.Consistent}/{s.People} | {Percent(s.Overall, s.MaxOverall)} | {rows.Count(r => r.Model == model && r.Version == s.Version && r.Clarifies && thin.Contains(r.Candidate))}/{rows.Count(r => r.Model == model && r.Version == s.Version && thin.Contains(r.Candidate))} | {rows.Count(r => r.Model == model && r.Version == s.Version && r.HasReasoning)}/{s.Rows} |");
             var best = stats.OrderByDescending(s => s.Overall).ThenByDescending(s => s.Consistent).First();
             sb.AppendLine().AppendLine($"**Best for {model}: {best.Version}** ({Percent(best.Overall, best.MaxOverall)} of checks passed, {best.Consistent} of {best.People} candidates repeatable). Versions are ranked by checks passed; repeatability breaks ties.").AppendLine();
         }

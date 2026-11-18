@@ -27,7 +27,7 @@ public sealed class Day2Cases
 }
 
 /// <summary>One candidate in one call: which checks passed. Failed calls produce rows with Parsed = false.</summary>
-public sealed record Day2Row(string Model, string Version, int Repeat, string Candidate, bool Parsed, bool Present, bool Grounded, bool FitOk, bool NoForbidden, bool IncompleteOk, string Fit, string[] Skills, int LatencyMs, int InputTokens, int OutputTokens, string? Error, int Batch = 0);
+public sealed record Day2Row(string Model, string Version, int Repeat, string Candidate, bool Parsed, bool Present, bool Grounded, bool FitOk, bool NoForbidden, bool IncompleteOk, string Fit, string[] Skills, int LatencyMs, int InputTokens, int OutputTokens, string? Error, int Batch = 0, bool Clarifies = false, bool HasReasoning = false);
 
 /// <summary>Day 2: every stored prompt version, on the same job and candidates, repeated to see whether results stay the same.</summary>
 public static class Day2Runner
@@ -40,12 +40,16 @@ public static class Day2Runner
         var rows = new List<Day2Row>();
         var required = SkillTools.ExtractSkills(cases.JobDescription);
         var prompts = new PromptLibrary();
+        // EVAL_VERSIONS=v5,v6,v7 runs only those (the earlier versions' results are kept from an earlier run); default is every version.
+        var only = Environment.GetEnvironmentVariable("EVAL_VERSIONS")?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var versions = PromptLibrary.Versions.Where(v => only is null || only.Contains(v)).ToArray();
         using var http = new HttpClient(new SocketsHttpHandler()) { Timeout = Timeout.InfiniteTimeSpan };
 
         foreach (var target in targets)
         {
-            var client = LlmClientFactory.Create(target.Provider, http, new AppOptions { LlmProvider = target.Provider, LlmBaseUrl = string.IsNullOrWhiteSpace(target.BaseUrl) ? null : target.BaseUrl, LlmApiKey = target.ApiKey, LlmModel = target.Model, LlmTimeoutSeconds = timeoutSeconds });
-            foreach (var version in PromptLibrary.Versions)
+            var client = LlmClientFactory.Create(target.Provider, http, new AppOptions { LlmProvider = target.Provider, LlmBaseUrl = string.IsNullOrWhiteSpace(target.BaseUrl) ? null : target.BaseUrl, LlmApiKey = target.ApiKey, LlmModel = target.Model, LlmTimeoutSeconds = timeoutSeconds, LlmTotalTimeoutSeconds = timeoutSeconds });
+            var pipeline = new AnalysisPipeline(client, prompts);
+            foreach (var version in versions)
                 for (var repeat = 1; repeat <= Repeats; repeat++)
                     foreach (var (group, batch) in cases.Candidates.Chunk(BatchSize).Select((g, i) => (g, i + 1)))
                     {
@@ -54,14 +58,14 @@ public static class Day2Runner
                         Console.Write($"{target.Name,-14} {version} run {repeat} batch {batch}  ");
                         try
                         {
-                            var r = await client.CompleteAsync(prompts.System(version), PromptText.UserMessage(cases.JobDescription, people), CancellationToken.None);
+                            var r = await pipeline.Run(version, cases.JobDescription, people, CancellationToken.None);
                             rows.AddRange(Score(target.Name, version, repeat, part, people, required, r, batch));
                             Console.WriteLine($"ok  {r.LatencyMs} ms");
                         }
                         catch (Exception e) when (e is LlmException or HttpRequestException or TaskCanceledException)
                         {
                             rows.AddRange(group.Select(c => Failed(target.Name, version, repeat, c.Name, e is LlmException le ? $"{le.Kind}: {le.Message}" : e.GetType().Name, batch)));
-                            Console.WriteLine("ERROR");
+                            Console.WriteLine("ERROR " + (e is LlmException le2 ? $"{le2.Kind}: {le2.Message}" : e.GetType().Name + ": " + e.Message));
                         }
                     }
         }
@@ -77,7 +81,7 @@ public static class Day2Runner
         try
         {
             var (views, _) = AnalysisParser.Parse(r.Text, people, required);
-            parsed = views.Select(v => new CandidateAnalysisViewLite(v.Id, v.Fit, v.MatchedSkills.Select(m => m.Skill).ToArray(), v.NotStated.Count, v.RemovedClaims)).ToList();
+            parsed = views.Select(v => new CandidateAnalysisViewLite(v.Id, v.Fit, v.MatchedSkills.Select(m => m.Skill).ToArray(), v.NotStated.Count, v.RemovedClaims, v.ClarifyingQuestions.Count > 0, v.Reasoning.Length > 0)).ToList();
         }
         catch (UnusableOutputException)
         {
@@ -92,9 +96,9 @@ public static class Day2Runner
             var fitOk = present && c.Expect.Fit.Contains(v!.Fit);
             var clean = present && !v!.Skills.Any(s => c.Expect.MustNotClaim.Contains(s, StringComparer.OrdinalIgnoreCase));
             var incompleteOk = !c.Expect.Incomplete || (present && (v!.Fit == "insufficient_information" || v.NotStatedCount > 0));
-            return new Day2Row(model, version, repeat, c.Name, true, present, grounded, fitOk, clean, incompleteOk, v?.Fit ?? "", v?.Skills ?? [], r.LatencyMs, r.InputTokens, r.OutputTokens, null, batch);
+            return new Day2Row(model, version, repeat, c.Name, true, present, grounded, fitOk, clean, incompleteOk, v?.Fit ?? "", v?.Skills ?? [], r.LatencyMs, r.InputTokens, r.OutputTokens, null, batch, v?.Clarifies ?? false, v?.HasReasoning ?? false);
         }).ToList();
     }
 
-    sealed record CandidateAnalysisViewLite(int Id, string Fit, string[] Skills, int NotStatedCount, int RemovedClaims);
+    sealed record CandidateAnalysisViewLite(int Id, string Fit, string[] Skills, int NotStatedCount, int RemovedClaims, bool Clarifies, bool HasReasoning);
 }

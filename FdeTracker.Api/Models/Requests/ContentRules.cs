@@ -20,14 +20,21 @@ public static class ContentRules
     }
 }
 
-/// <summary>Links must be absolute https URLs.</summary>
+/// <summary>
+/// Links must be absolute https URLs with a real host and no username or password in them. A link such as
+/// https://github.com@evil.example shows one name and goes to another, and a password in a link would be stored in the database.
+/// </summary>
 [AttributeUsage(AttributeTargets.Property)]
 public sealed class HttpsUrlAttribute : ValidationAttribute
 {
-    public HttpsUrlAttribute() : base("Links must use https") { }
+    public HttpsUrlAttribute() : base("Links must use https and must not contain a username or password") { }
+
+    public static bool IsAllowed(string s) =>
+        s.StartsWith("https://", StringComparison.Ordinal) && Uri.TryCreate(s, UriKind.Absolute, out var u)
+        && u.Scheme == Uri.UriSchemeHttps && u.Host.Length > 0 && u.UserInfo.Length == 0 && !s.Any(char.IsWhiteSpace);
 
     protected override ValidationResult? IsValid(object? value, ValidationContext context) =>
-        value is null or "" || (value is string s && s.StartsWith("https://", StringComparison.Ordinal) && Uri.TryCreate(s, UriKind.Absolute, out _))
+        value is null or "" || (value is string s && IsAllowed(s))
             ? ValidationResult.Success
             : new ValidationResult(ErrorMessage, [context.MemberName ?? "url"]);
 }
