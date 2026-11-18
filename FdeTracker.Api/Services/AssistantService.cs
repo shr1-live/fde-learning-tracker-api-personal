@@ -9,11 +9,11 @@ using FdeTracker.Api.ViewModels;
 namespace FdeTracker.Api.Services;
 
 /// <summary>Recruitment candidate analysis: builds the prompt, calls the model, then checks the answer before anyone sees it.</summary>
-public sealed class AssistantService(Db db, ILlmClient llm, AnalysisPipeline pipeline, LlmCallRepository calls, AppOptions options, ILogger<AssistantService> logger)
+public sealed class AssistantService(Db db, ILlmClient llm, LlmHttp llmHttp, AnalysisPipeline pipeline, LlmCallRepository calls, AppOptions options, ILogger<AssistantService> logger)
 {
     public async Task<AssistantUsageView> Usage(Guid userId) => new()
     {
-        Configured = llm.IsConfigured, Model = llm.Model, DailyCap = options.LlmDailyCap,
+        Configured = llm.IsConfigured, Model = llm.Model, DailyCap = LlmKeyScope.CapFor(options), UsingOwnKey = LlmKeyScope.Current is not null,
         UsedToday = await db.Read(s => calls.CountLastDay(s, userId)), PromptVersions = PromptLibrary.Versions,
     };
 
@@ -26,8 +26,9 @@ public sealed class AssistantService(Db db, ILlmClient llm, AnalysisPipeline pip
         var callId = await db.Tx(async s =>
         {
             await calls.LockUser(s, userId);
-            if (await calls.CountLastDay(s, userId) >= options.LlmDailyCap)
-                throw new ApiException(429, $"Daily limit of {options.LlmDailyCap} analyses reached. Try again tomorrow.");
+            var cap = LlmKeyScope.CapFor(options); // own-key calls are not charged to the shared limit
+            if (await calls.CountLastDay(s, userId) >= cap)
+                throw new ApiException(429, $"Daily limit of {cap} analyses reached. Try again tomorrow.");
             return await calls.Reserve(s, userId, version);
         });
 
@@ -41,7 +42,7 @@ public sealed class AssistantService(Db db, ILlmClient llm, AnalysisPipeline pip
         {
             logger.LogWarning("LLM call failed: {Kind}: {Message}", e.Kind, e.Message);
             await Finish(callId, llm.Model, null, null, null, e.Kind);
-            throw LlmFailure.ToApi(e);
+            throw LlmFailure.ToApi(e, LlmKeyScope.Current is not null);
         }
         catch (OperationCanceledException)
         {
@@ -65,6 +66,14 @@ public sealed class AssistantService(Db db, ILlmClient llm, AnalysisPipeline pip
             await Finish(callId, result.Model, result.InputTokens, result.OutputTokens, result.LatencyMs, "invalid_output");
             throw new ApiException(502, "The model gave an answer we could not use. Try again.");
         }
+    }
+
+    /// <summary>The models the person's own key can use (needs the X-Gemini-Key header). Also proves the key works.</summary>
+    public async Task<GeminiModels> Models(CancellationToken ct)
+    {
+        var key = LlmKeyScope.Current ?? throw new ApiException(400, "Paste your Gemini key first.");
+        try { return await GeminiCatalog.ListAsync(llmHttp.Client, key.ApiKey, ct); }
+        catch (LlmException e) { throw LlmFailure.ToApi(e, ownKey: true); }
     }
 
     Task Finish(long callId, string? model, int? inTokens, int? outTokens, int? latency, string status) =>

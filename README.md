@@ -117,6 +117,18 @@ Results and generated reports are written to `docs/evals/`. The frontend's Week 
 
 A small local model (qwen2.5:3b) handled create, list and update but not delete; see `docs/WEEK1-REPORT.md`. Use a stronger model for real use.
 
+## Using your own Gemini key (no shared or local model needed)
+
+Anyone signed in can paste **their own** Gemini API key in the app (Assistant and Task assistant pages) and use the assistants with it. This is for people when the server has no shared model, or when they do not have a local one.
+
+- **How it travels.** The browser sends the key in the `X-Gemini-Key` header and the chosen model in `X-Gemini-Model`, only on `/api/assistant*` and `/api/task-assistant*`. Any other route ignores both headers.
+- **What the server does with it.** It is checked for shape (`AIza` plus letters, digits, `_`, `-`), kept in memory for that one request (`LlmKeyScope`), used to call Gemini, and dropped. It is **never** written to the database, **never** logged, and **never** repeated in an answer or an error (the messages are fixed text; Google's own error text is not passed on).
+- **Where it is sent.** Always Google's address (`GeminiKeyClient.Endpoint`), as a bearer header. The key cannot choose another address, so it cannot be used to make the server call somewhere else.
+- **Limits.** Calls with an own key are not charged to the shared daily limit (`LLM_DAILY_CAP`); a separate cap of 500 a day per person only stops hammering. The usual per-minute limits still apply. Google's own free-key limits apply to the person's key, and the app says so when Google answers 429.
+- **Errors.** A refused key or an unknown model is the person's to fix, so the message says "Gemini refused your key" or "press Test key and pick a model", not "tell the administrator".
+- **`GET /api/assistant/models`** (with the key header) asks Google which models the key can use, filtered to chat models, and suggests the newest plain "flash". It doubles as the "Test key" check.
+- **Not covered by tests:** a real call to Google. The tests use a fake HTTP layer. Try it once with a real key in the browser after deploying.
+
 ## Model errors and retries
 
 A failure of the model provider is sorted (`Services/Llm/Errors.cs`) into a category and a retry flag, and every endpoint that talks to the model answers with the same wording (`LlmFailure.cs`). The error body keeps `error` and adds `category` (`validation`, `permission`, `business`, `transient`, `ratelimit`), `retryable`, `kind` and, for a rate limit, `retry_after_seconds` (also sent as `Retry-After`).

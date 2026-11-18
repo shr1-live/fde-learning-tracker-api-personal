@@ -34,8 +34,9 @@ public sealed class TaskAssistantService(Db db, ILlmClient llm, LlmCallRepositor
         var callId = await db.Tx(async s =>
         {
             await calls.LockUser(s, user.Id);
-            if (await calls.CountLastDay(s, user.Id) >= options.LlmDailyCap)
-                throw new ApiException(429, $"Daily limit of {options.LlmDailyCap} assistant requests reached. Try again tomorrow.");
+            var cap = LlmKeyScope.CapFor(options); // own-key calls are not charged to the shared limit
+            if (await calls.CountLastDay(s, user.Id) >= cap)
+                throw new ApiException(429, $"Daily limit of {cap} assistant requests reached. Try again tomorrow.");
             return await calls.Reserve(s, user.Id, PromptVersion);
         });
 
@@ -84,7 +85,7 @@ public sealed class TaskAssistantService(Db db, ILlmClient llm, LlmCallRepositor
         {
             logger.LogWarning("Task assistant model call failed: {Kind}: {Message}", e.Kind, e.Message);
             await Finish(callId, llm.Model, null, null, null, e.Kind);
-            throw LlmFailure.ToApi(e);
+            throw LlmFailure.ToApi(e, LlmKeyScope.Current is not null);
         }
         catch (UnusableOutputException e)
         {

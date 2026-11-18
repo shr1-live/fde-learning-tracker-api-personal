@@ -42,6 +42,8 @@ public sealed class AssistantUsageView
     public bool Configured { get; init; }
     public string? Model { get; init; }
     public int DailyCap { get; init; }
+    /// <summary>True when this request carried the person's own Gemini key (the shared limit does not apply to it).</summary>
+    public bool UsingOwnKey { get; init; }
     public int UsedToday { get; init; }
     public string[] PromptVersions { get; init; } = [];
 }
