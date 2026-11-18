@@ -48,6 +48,9 @@ public sealed record ApiResult(int Status, JsonNode? Json)
 /// <summary>Starts a real Postgres in Docker and the API against it, once for the whole test class.</summary>
 public sealed class ApiFixture : IAsyncLifetime
 {
+    /// <summary>Every test class that starts the API joins this collection, so two APIs never start at once against each other's database.</summary>
+    public const string Collection = "api";
+
     const string Secret = "test-secret-test-secret-test-secret-123456";
     const string Issuer = "https://test.supabase.co/auth/v1";
     readonly PostgreSqlContainer _pg = new PostgreSqlBuilder().WithImage("postgres:16-alpine").Build();

@@ -6,6 +6,7 @@ using FdeTracker.Api.Services.Llm;
 namespace FdeTracker.Tests;
 
 [TestCaseOrderer("FdeTracker.Tests.NameOrderer", "FdeTracker.Tests")]
+[Collection(ApiFixture.Collection)] // classes that start the API run one at a time: the fixture sets process-wide settings (DATABASE_URL)
 public sealed class ApiTests(ApiFixture api) : IClassFixture<ApiFixture>
 {
     static readonly TestUser Admin = new(ApiFixture.Id(1), "boss@fiftyfivetech.io");

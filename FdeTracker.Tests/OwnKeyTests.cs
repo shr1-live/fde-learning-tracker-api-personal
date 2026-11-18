@@ -134,6 +134,7 @@ public sealed class OwnKeyTests
 }
 
 /// <summary>The header on the real request pipeline: who may send it, which routes read it, and that it is never echoed.</summary>
+[Collection(ApiFixture.Collection)]
 public sealed class OwnKeyApiTests(ApiFixture api) : IClassFixture<ApiFixture>
 {
     const string Key = "AIzaSyOWNKEY_0123456789abcdefghijklmnop";
