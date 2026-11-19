@@ -69,7 +69,6 @@ public class ApiFixture : IAsyncLifetime
         Environment.SetEnvironmentVariable("SUPABASE_JWT_SECRET", Secret);
         Environment.SetEnvironmentVariable("ADMIN_EMAIL", "boss@fiftyfivetech.io");
         Environment.SetEnvironmentVariable("ALLOWED_DOMAIN", "fiftyfivetech.io");
-        Environment.SetEnvironmentVariable("FREE_SEATS", "3");
         Environment.SetEnvironmentVariable("CORS_ORIGINS", "https://app.example");
         Environment.SetEnvironmentVariable("LLM_DAILY_CAP", "20");
         // The suite fires hundreds of requests in seconds; production keeps the defaults (240 per address, 40 writes per person).
@@ -152,6 +151,21 @@ public class ApiFixture : IAsyncLifetime
         var req = new HttpRequestMessage(HttpMethod.Get, path);
         req.Headers.Add("Origin", origin);
         return _client.SendAsync(req);
+    }
+
+    /// <summary>Sign-in is invite-only: stores open invites (as members of the seeded FDE program) so these people are approved when they first sign in.</summary>
+    public async Task Invite(params TestUser[] users)
+    {
+        Assert.Equal(200, (await Call("GET", "/health")).Status); // the API (and its migrations) has started
+        await using var conn = new NpgsqlConnection(ConnectionString);
+        await conn.OpenAsync();
+        foreach (var u in users)
+        {
+            await using var cmd = new NpgsqlCommand(
+                "insert into lp_invites (email, program_id, role) select @email, id, 'member' from lp_programs where name = 'FDE Training Program' on conflict (email, program_id) do nothing", conn);
+            cmd.Parameters.AddWithValue("email", u.Email.ToLowerInvariant());
+            await cmd.ExecuteNonQueryAsync();
+        }
     }
 
     public async Task<long> Count(string sql)

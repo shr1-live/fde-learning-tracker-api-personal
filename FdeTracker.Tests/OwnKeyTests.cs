@@ -135,8 +135,12 @@ public sealed class OwnKeyTests
 
 /// <summary>The header on the real request pipeline: who may send it, which routes read it, and that it is never echoed.</summary>
 [Collection(ApiFixture.Collection)]
-public sealed class OwnKeyApiTests(ApiFixture api) : IClassFixture<ApiFixture>
+public sealed class OwnKeyApiTests(ApiFixture api) : IClassFixture<ApiFixture>, IAsyncLifetime
 {
+    // Sign-in is invite-only: these people are invited (as members of the seeded program) before they first sign in.
+    public Task InitializeAsync() => api.Invite(Learner);
+    public Task DisposeAsync() => Task.CompletedTask;
+
     const string Key = "AIzaSyOWNKEY_0123456789abcdefghijklmnop";
     static readonly TestUser Admin = new(ApiFixture.Id(1), "boss@fiftyfivetech.io");
     static readonly TestUser Learner = new(ApiFixture.Id(2), "b@fiftyfivetech.io");

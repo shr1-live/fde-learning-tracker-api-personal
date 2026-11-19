@@ -40,6 +40,8 @@ builder.Services.AddSingleton<SubmissionRepository>();
 builder.Services.AddSingleton<TaskRepository>();
 builder.Services.AddSingleton<LabRunRepository>();
 builder.Services.AddSingleton<ReportRepository>();
+builder.Services.AddSingleton<LearningProgramRepository>();
+builder.Services.AddSingleton<FeedPostRepository>();
 builder.Services.AddSingleton<TaskTools>();
 builder.Services.AddSingleton<PromptLibrary>();
 builder.Services.AddSingleton<AnalysisPipeline>();
@@ -66,6 +68,9 @@ builder.Services.AddSingleton<SubmissionReviewService>();
 builder.Services.AddSingleton<LabService>();
 builder.Services.AddSingleton<LabRunService>();
 builder.Services.AddSingleton<ReportService>();
+builder.Services.AddSingleton<LearningProgramService>();
+builder.Services.AddSingleton<ProgramStatusService>();
+builder.Services.AddSingleton<FeedPostService>();
 
 // ---- controllers and JSON (snake_case on the wire, unknown fields refused)
 builder.Services.AddControllers()
@@ -104,6 +109,7 @@ builder.Services.AddCors(c => c.AddDefaultPolicy(p => p
     .WithOrigins(options.CorsOrigins)
     .WithMethods("GET", "POST", "PATCH", "PUT", "DELETE")
     .AllowAnyHeader()
+    .WithExposedHeaders("Content-Disposition") // the Excel downloads carry their file name
     .SetPreflightMaxAge(TimeSpan.FromMinutes(10))));
 builder.Services.AddRateLimiter(r =>
 {
