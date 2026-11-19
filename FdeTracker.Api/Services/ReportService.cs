@@ -18,7 +18,8 @@ public sealed class ReportService(Db db, ReportRepository repo)
         var days = await repo.Days(s, personId);
         days.Sort((a, b) => NaturalKey.Compare(a.TaskKey, b.TaskKey));
 
-        var rated = days.Where(d => d.Rating is not null).Select(d => (double)d.Rating!.Value).ToList();
+        // Only handed-in days count: a draft's rating is private to its owner, so it must not be readable through the average either.
+        var rated = days.Where(d => d.Rating is not null && d.Status != "draft").Select(d => (double)d.Rating!.Value).ToList();
         var totals = new ReportTotalsView
         {
             Submitted = days.Count(d => d.Status == "submitted"),

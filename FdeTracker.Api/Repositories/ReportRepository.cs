@@ -25,8 +25,8 @@ public sealed class ReportRepository
                count(x.id) filter (where x.status = 'approved')::int as approved,
                count(x.id) filter (where x.status = 'changes_requested')::int as changes_requested,
                count(x.id) filter (where x.status = 'draft')::int as drafts,
-               round(avg(x.rating)::numeric, 1)::float8 as avg_rating,
-               greatest(max(x.submitted_at), max(x.reviewed_at), max(x.updated_at)) as last_activity
+               round((avg(x.rating) filter (where x.status <> 'draft'))::numeric, 1)::float8 as avg_rating, -- drafts are private: not in the average
+               greatest(max(x.submitted_at), max(x.reviewed_at), max(x.updated_at) filter (where x.status <> 'draft')) as last_activity
              from app_users u
              left join batches b on b.id = u.batch_id
              left join submissions x on x.user_id = u.id

@@ -69,7 +69,7 @@ public sealed class ReportTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(1, (int)t["approved"]!);
         Assert.Equal(1, (int)t["changes_requested"]!);
         Assert.Equal(1, (int)t["drafts"]!);
-        Assert.Equal(3.7, (double)t["avg_rating"]!); // (5 + 4 + 2) / 3
+        Assert.Equal(4.5, (double)t["avg_rating"]!); // (5 + 4) / 2: the draft's 2 is private and not counted
 
         var d2 = Day(rep, "week1-day2");
         Assert.Equal("changes_requested", (string)d2["status"]!);
@@ -123,7 +123,7 @@ public sealed class ReportTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(1, (int)m1["approved"]!);
         Assert.Equal(1, (int)m1["changes_requested"]!);
         Assert.Equal(1, (int)m1["drafts"]!);
-        Assert.Equal(3.7, (double)m1["avg_rating"]!);
+        Assert.Equal(4.5, (double)m1["avg_rating"]!);
         Assert.NotNull(m1["last_activity"]);
 
         var m2 = rows.First(r => (string)r!["id"]! == M2.Id.ToString())!.AsObject();
@@ -151,7 +151,7 @@ public sealed class ReportTests(ApiFixture api) : IClassFixture<ApiFixture>
             Assert.Equal("Asha", (string)rep["person"]!["name"]!);
             Assert.Equal(3, rep["days"]!.AsArray().Count);
             Assert.Equal(1, (int)rep["totals"]!["drafts"]!);
-            Assert.Equal(3.7, (double)rep["totals"]!["avg_rating"]!);
+            Assert.Equal(4.5, (double)rep["totals"]!["avg_rating"]!);
             Assert.Equal("Add the token counts.", (string)Day(rep, "week1-day2")["last_comment"]!);
             Assert.Equal("Learned on week1-day2", (string)Day(rep, "week1-day2")["learned"]!);
 
