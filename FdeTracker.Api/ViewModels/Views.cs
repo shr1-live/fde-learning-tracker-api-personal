@@ -12,9 +12,30 @@ public sealed class UserView
     public string? StackId { get; init; }
     public string Role { get; init; } = "";
     public string Access { get; init; } = "";
+    /// <summary>The person's batch, or null when they are not in one. Always sent, so the client can rely on the key.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.Never)]
+    public BatchView? Batch { get; init; }
 
-    public static UserView From(AppUser u) => new() { Id = u.Id, Email = u.Email, DisplayName = u.DisplayName, StackId = u.StackId, Role = u.Role, Access = u.AccessStatus };
+    public static UserView From(AppUser u, BatchView? batch = null) => new() { Id = u.Id, Email = u.Email, DisplayName = u.DisplayName, StackId = u.StackId, Role = u.Role, Access = u.AccessStatus, Batch = batch };
 }
+
+/// <summary>A batch: a group of learners who start on the same day. starts_on is "YYYY-MM-DD".</summary>
+public sealed class BatchView
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = "";
+    public string StartsOn { get; set; } = "";
+}
+
+public sealed class BatchListItemView
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = "";
+    public string StartsOn { get; set; } = "";
+    public int Members { get; set; }
+}
+
+public sealed class BatchAssignView { public Guid Id { get; set; } public string Email { get; set; } = ""; public Guid? BatchId { get; set; } }
 
 public sealed class ProfileView
 {
@@ -35,6 +56,8 @@ public sealed class AdminUserView
     public string AccessStatus { get; set; } = "";
     public DateTime CreatedAt { get; set; }
     public DateTime LastSeenAt { get; set; }
+    public Guid? BatchId { get; set; }
+    public string? BatchName { get; set; }
 }
 
 public sealed class AccessChangeView { public Guid Id { get; set; } public string Email { get; set; } = ""; public string AccessStatus { get; set; } = ""; }
@@ -55,11 +78,12 @@ public sealed class FeedItemView
     public string Topic { get; init; } = "";
     public string TopicTitle { get; init; } = "";
     public string Author { get; init; } = "";
+    public bool Recommended { get; init; }
 
     public static FeedItemView From(ContentRecord c) => new()
     {
         Id = c.Id, Title = c.Title, Summary = c.Summary, Kind = c.Kind, Url = c.Url, StackId = c.StackId,
-        ApprovedAt = c.ApprovedAt, Topic = c.Topic, TopicTitle = c.TopicTitle, Author = c.Author,
+        ApprovedAt = c.ApprovedAt, Topic = c.Topic, TopicTitle = c.TopicTitle, Author = c.Author, Recommended = c.Recommended,
     };
 }
 
@@ -80,11 +104,12 @@ public sealed class ContentDetailView
     public string Author { get; init; } = "";
     public string? BodyMd { get; init; }
     public string Status { get; init; } = "";
+    public bool Recommended { get; init; }
 
     public static ContentDetailView From(ContentRecord c) => new()
     {
         Id = c.Id, Title = c.Title, Summary = c.Summary, Kind = c.Kind, Url = c.Url, StackId = c.StackId, ApprovedAt = c.ApprovedAt,
-        Topic = c.Topic, TopicTitle = c.TopicTitle, Author = c.Author, BodyMd = c.BodyMd, Status = c.Status,
+        Topic = c.Topic, TopicTitle = c.TopicTitle, Author = c.Author, BodyMd = c.BodyMd, Status = c.Status, Recommended = c.Recommended,
     };
 }
 
@@ -107,9 +132,12 @@ public sealed class ReviewQueueItemView
     public Guid Id { get; set; }
     public string Title { get; set; } = "";
     public string Kind { get; set; } = "";
+    public string? Url { get; set; }
+    public string? Summary { get; set; }
     public string? StackId { get; set; }
     public DateTime? SubmittedAt { get; set; }
     public string Topic { get; set; } = "";
+    public string TopicTitle { get; set; } = "";
     public string Author { get; set; } = "";
 }
 

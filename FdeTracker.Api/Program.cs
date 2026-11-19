@@ -31,6 +31,7 @@ builder.Services.AddSingleton<UserRepository>();
 builder.Services.AddSingleton<CatalogRepository>();
 builder.Services.AddSingleton<AuditRepository>();
 builder.Services.AddSingleton<ContentRepository>();
+builder.Services.AddSingleton<BatchRepository>();
 builder.Services.AddSingleton<ReviewRepository>();
 builder.Services.AddSingleton<ProgramRepository>();
 builder.Services.AddSingleton<LlmCallRepository>();
@@ -50,6 +51,7 @@ builder.Services.AddSingleton<ILlmClient>(sp =>
 });
 builder.Services.AddSingleton<UserService>();
 builder.Services.AddSingleton<ContentService>();
+builder.Services.AddSingleton<BatchService>();
 builder.Services.AddSingleton<ReviewService>();
 builder.Services.AddSingleton<ProgramService>();
 builder.Services.AddSingleton<AssistantService>();

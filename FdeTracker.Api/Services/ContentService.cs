@@ -15,15 +15,35 @@ public sealed class ContentService(Db db, ContentRepository content, AuditReposi
     public async Task<FeedPageView> Feed(AppUser user, FeedQuery q)
     {
         var stack = q.Stack ?? user.StackId ?? "general";
-        var rows = await db.Read(s => content.Feed(s, stack, q.Topic, q.Before is null ? null : DecodeCursor(q.Before), q.Limit));
+        var sort = q.Sort ?? "newest";
+        var paged = sort == "newest"; // only the newest-first order pages with a cursor; the others are one page
+        var cursor = paged && q.Before is not null ? DecodeCursor(q.Before) : ((DateTime, Guid)?)null;
+        var rows = await db.Read(s => content.Feed(s, stack, q.Topic, sort, cursor, q.Limit));
         var more = rows.Count > q.Limit;
         var items = (more ? rows.Take(q.Limit) : rows).ToList();
         return new FeedPageView
         {
             Items = items.Select(FeedItemView.From).ToList(),
-            Next = more && items.Count > 0 ? EncodeCursor(items[^1]) : null,
+            Next = paged && more && items.Count > 0 ? EncodeCursor(items[^1]) : null,
         };
     }
+
+    /// <summary>The review team marks an approved item as recommended (or takes the mark off).</summary>
+    public async Task<FeedItemView> Recommend(AppUser user, Guid id, bool recommended)
+    {
+        var row = await db.Tx(async s =>
+        {
+            var status = await content.LockStatus(s, id) ?? throw ApiException.NotFound();
+            if (status != "approved") throw new ApiException(409, "Only approved items can be recommended");
+            await content.SetRecommended(s, id, recommended);
+            await audit.Record(s, user.Id, recommended ? "content.recommend" : "content.unrecommend", id.ToString());
+            return await content.Find(s, id);
+        });
+        return FeedItemView.From(row!);
+    }
+
+    /// <summary>A reviewer's or admin's own submission goes straight to the feed; a member's waits for review.</summary>
+    static string SubmittedStatus(AppUser user) => user.Role is "reviewer" or "admin" ? "approved" : "in_review";
 
     public Task<List<MyContentView>> Mine(Guid userId) => db.Read(s => content.Mine(s, userId));
 
@@ -36,18 +56,21 @@ public sealed class ContentService(Db db, ContentRepository content, AuditReposi
         return ContentDetailView.From(row);
     }
 
-    public Task<ContentSavedView> Create(Guid userId, CreateContentRequest b) => db.Tx(async s =>
+    public Task<ContentSavedView> Create(AppUser user, CreateContentRequest b) => db.Tx(async s =>
     {
+        var userId = user.Id;
         if (await content.ActiveCount(s, userId) >= MaxActiveDrafts)
             throw new ApiException(429, $"You have {MaxActiveDrafts} items in progress. Finish or delete some first.");
         var topicId = await content.TopicId(s, b.Topic) ?? throw ApiException.BadRequest("Unknown topic");
-        var row = await content.Insert(s, topicId, b.StackId, b.Kind, b.Title, b.Summary, b.BodyMd, b.Url, userId, b.Submit);
+        var row = await content.Insert(s, topicId, b.StackId, b.Kind, b.Title, b.Summary, b.BodyMd, b.Url, userId, b.Submit ? SubmittedStatus(user) : "draft");
         await audit.Record(s, userId, "content.create", row.Id.ToString(), new { status = row.Status });
+        if (row.Status == "approved") await audit.Record(s, userId, "content.auto_approved", row.Id.ToString(), new { role = user.Role });
         return row;
     });
 
-    public Task<ContentSavedView> Update(Guid userId, Guid id, PatchContentRequest b) => db.Tx(async s =>
+    public Task<ContentSavedView> Update(AppUser user, Guid id, PatchContentRequest b) => db.Tx(async s =>
     {
+        var userId = user.Id;
         var cur = await content.LockOwned(s, id, userId) ?? throw ApiException.NotFound();
         if (cur.Status is not ("draft" or "changes_requested")) throw new ApiException(409, "This item can no longer be edited");
         var topicId = cur.TopicId;
@@ -59,8 +82,9 @@ public sealed class ContentService(Db db, ContentRepository content, AuditReposi
         };
         if (ContentRules.Check(next.Kind, next.Url, next.BodyMd) is { } e) throw ApiException.BadRequest(e.Message);
         var submit = b.Submit == true;
-        var row = await content.Update(s, id, next, submit);
+        var row = await content.Update(s, id, next, submit ? SubmittedStatus(user) : null);
         await audit.Record(s, userId, submit ? "content.submit" : "content.edit", id.ToString());
+        if (submit && row.Status == "approved") await audit.Record(s, userId, "content.auto_approved", id.ToString(), new { role = user.Role });
         return row;
     });
 

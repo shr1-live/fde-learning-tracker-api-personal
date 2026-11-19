@@ -16,4 +16,7 @@ public sealed class AdminController(UserService users) : ApiControllerBase
 
     [HttpPost("{id}/role")]
     public async Task<IActionResult> SetRole(Guid id, SetRoleRequest body) => Ok(await users.SetRole(CurrentUser.Id, id, body.Role));
+
+    [HttpPost("{id}/batch")]
+    public async Task<IActionResult> SetBatch(Guid id, SetBatchRequest body) => Ok(await users.SetBatch(CurrentUser.Id, id, body.BatchId));
 }

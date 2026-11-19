@@ -31,11 +31,19 @@ public sealed class UserRepository
             new { id, displayName, stackSet, stackId });
 
     public Task<List<AdminUserView>> List(Session s) =>
-        s.Query<AdminUserView>("select id, email, display_name, stack_id, role, access_status, created_at, last_seen_at from app_users order by created_at desc limit 500");
+        s.Query<AdminUserView>(
+            """
+            select u.id, u.email, u.display_name, u.stack_id, u.role, u.access_status, u.created_at, u.last_seen_at, u.batch_id, b.name as batch_name
+            from app_users u left join batches b on b.id = u.batch_id order by u.created_at desc limit 500
+            """);
+
+    public Task<BatchAssignView?> SetBatch(Session s, Guid id, Guid? batchId) =>
+        s.First<BatchAssignView>("update app_users set batch_id = @batchId where id = @id returning id, email, batch_id", new { id, batchId });
 
     public Task<AccessChangeView?> SetAccess(Session s, Guid id, string status) =>
         s.First<AccessChangeView>("update app_users set access_status = @status where id = @id and role <> 'admin' returning id, email, access_status", new { id, status });
 
-    public Task<RoleChangeView?> SetRole(Session s, Guid id, string role) =>
-        s.First<RoleChangeView>("update app_users set role = @role where id = @id and role <> 'admin' returning id, email, role", new { id, role });
+    /// <summary>Sets member or reviewer for anyone except the owner (ADMIN_EMAIL) account. Null when there is no such person, or it is the owner.</summary>
+    public Task<RoleChangeView?> SetRole(Session s, Guid id, string role, string adminEmail) =>
+        s.First<RoleChangeView>("update app_users set role = @role where id = @id and email <> @adminEmail returning id, email, role", new { id, role, adminEmail });
 }
