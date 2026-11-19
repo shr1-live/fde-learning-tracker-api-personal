@@ -87,9 +87,11 @@ Without `LLM_API_KEY` and `LLM_MODEL` the endpoint answers 503 and nothing else 
 
 ```bash
 ollama pull qwen2.5:3b
-export LLM_BASE_URL=http://127.0.0.1:11434/v1 LLM_API_KEY=local LLM_MODEL=qwen2.5:3b LLM_TIMEOUT_SECONDS=180
+export LLM_BASE_URL=http://127.0.0.1:11434/v1 LLM_API_KEY=local LLM_MODEL=qwen2.5:3b LLM_TIMEOUT_SECONDS=300 LLM_TOTAL_TIMEOUT_SECONDS=600 TASK_MESSAGE_DEADLINE_SECONDS=300
 dotnet run --project FdeTracker.Api      # with DATABASE_URL and SUPABASE_URL set as above
 ```
+
+For the practice lab on a small local model, keep these longer time limits: measured on qwen2.5:3b (2026-11-19), one Day 2 batch of 4 candidates takes 77-125 s (once 180 s) and one task-assistant message 16-61 s, so the defaults (30 s per try, 60 s in total) time out. Gemini answers in seconds and needs no change.
 
 ### Comparing models and prompt versions (Evals)
 
@@ -128,6 +130,16 @@ Anyone signed in can paste **their own** Gemini API key in the app (Assistant an
 - **Errors.** A refused key or an unknown model is the person's to fix, so the message says "Gemini refused your key" or "press Test key and pick a model", not "tell the administrator".
 - **`GET /api/assistant/models`** (with the key header) asks Google which models the key can use, filtered to chat models, and suggests the newest plain "flash". It doubles as the "Test key" check.
 - **Not covered by tests:** a real call to Google. The tests use a fake HTTP layer. Try it once with a real key in the browser after deploying.
+
+## Practice lab (Week 1 Day 1 and Day 2 from the web app)
+
+A learner can run the Day 1 prompt set and the Day 2 prompt versions from the app, on the server's model or on their own Gemini key (the lab routes sit under `/api/assistant`, so the own-key headers work there unchanged).
+
+- **Same cases, same scoring as the evaluation tool.** `evals/day1-prompts.json` and `evals/day2-cases.json` are built into the API. The scoring rules live in `Services/Lab/Day1Scoring.cs` and `Day2Scoring.cs`, and `FdeTracker.Evals` calls the same code, so a case passes or fails the same way in both places.
+- **Day 1:** `POST /api/assistant/lab/day1/{caseId}` runs one case with the set's system prompt and returns `passed`, the answer (cut to 1000 characters for display; scored in full), time and tokens.
+- **Day 2:** `POST /api/assistant/lab/day2/{version}?batch=0` runs four candidates through the real analysis pipeline and guardrails and scores each one (usable, grounded, sensible fit, no invented skills, missing information shown). The answer gives `batches` so the app can run the rest. An answer in the wrong shape is a result (every candidate fails), not an error.
+- **Limits and logging:** every lab call is reserved and logged in `llm_calls` (`lab-day1`, `lab-day2-vN`) and counts toward the same daily limit as the assistant (`LlmCallLedger`).
+- **Saved runs** (`lab_runs`, migration 009, locked away from Supabase's public API like 008): up to 50 per person, result up to 64 KB, stored and returned as data. A result that contains something shaped like a Gemini key is refused. Only the owner sees or deletes a run (someone else's answers 404). An admin can pin one run per day as the shared sample (`GET /api/lab/samples`, no owner information); a pinned run must be unpinned before its owner can delete it.
 
 ## Model errors and retries
 
@@ -239,6 +251,12 @@ dotnet test        # needs Docker running: starts a throwaway Postgres
 | POST | `/api/assistant/analyze` | approved, daily cap |
 | POST | `/api/task-assistant/message`, `/confirm/{id}` | approved, daily cap |
 | GET | `/api/task-assistant/tasks`, `/log` | approved (own) |
+| GET | `/api/assistant/lab/day1/cases` | approved |
+| POST | `/api/assistant/lab/day1/{caseId}`, `/api/assistant/lab/day2/{version}?batch=` | approved, daily cap |
+| GET / POST | `/api/lab/runs/mine`, `/api/lab/runs` | approved (own) |
+| DELETE | `/api/lab/runs/{id}` | owner (a pinned sample: admin owner only) |
+| GET | `/api/lab/samples` | approved |
+| POST / DELETE | `/api/lab/runs/{id}/pin` | admin |
 | GET | `/api/submissions` | approved (own) |
 | GET / PUT | `/api/submissions/{taskKey}` | approved (own) |
 | POST | `/api/submissions/{taskKey}/links`, `/files`, `/submit` | approved (own) |

@@ -1,33 +1,11 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using FdeTracker.Api.Common;
 using FdeTracker.Api.Services.Llm;
 
 namespace FdeTracker.Evals;
 
-public sealed class PromptCase
-{
-    [JsonPropertyName("id")] public string Id { get; set; } = "";
-    [JsonPropertyName("kind")] public string Kind { get; set; } = "";
-    [JsonPropertyName("prompt")] public string Prompt { get; set; } = "";
-    [JsonPropertyName("expect_any")] public string[]? ExpectAny { get; set; }
-    [JsonPropertyName("expect_all")] public string[]? ExpectAll { get; set; }
-    [JsonPropertyName("expect_none")] public string[]? ExpectNone { get; set; }
-    [JsonPropertyName("expect_regex")] public string? ExpectRegex { get; set; }
-    [JsonPropertyName("max_words")] public int? MaxWords { get; set; }
-    [JsonPropertyName("min_question_marks")] public int? MinQuestionMarks { get; set; }
-}
-
-public sealed class PromptSet
-{
-    [JsonPropertyName("version")] public int Version { get; set; } = 1;
-    [JsonPropertyName("system")] public string System { get; set; } = "";
-    [JsonPropertyName("cases")] public List<PromptCase> Cases { get; set; } = [];
-}
-
 public sealed record CaseResult(string Model, string CaseId, string Kind, bool Passed, string Answer, int LatencyMs, int InputTokens, int OutputTokens, string? Error);
 
-/// <summary>Day 1: run one fixed prompt set against several models and score each answer automatically.</summary>
+/// <summary>Day 1: run one fixed prompt set against several models and score each answer automatically (scoring rules: <see cref="Day1Scoring"/>, shared with the web practice lab).</summary>
 public static class Day1Runner
 {
     public static async Task<List<CaseResult>> Run(PromptSet set, IReadOnlyList<ResolvedTarget> targets, int timeoutSeconds)
@@ -44,8 +22,8 @@ public static class Day1Runner
                 try
                 {
                     var r = await client.CompleteAsync(set.System, c.Prompt, CancellationToken.None);
-                    var answer = ExtractAnswer(r.Text);
-                    var ok = Score(c, answer);
+                    var answer = Day1Scoring.ExtractAnswer(r.Text);
+                    var ok = Day1Scoring.Score(c, answer);
                     results.Add(new CaseResult(model, c.Id, c.Kind, ok, answer, r.LatencyMs, r.InputTokens, r.OutputTokens, null));
                     Console.WriteLine($"{(ok ? "pass" : "FAIL")}  {r.LatencyMs} ms");
                 }
@@ -58,27 +36,5 @@ public static class Day1Runner
             }
         }
         return results;
-    }
-
-    static string ExtractAnswer(string text)
-    {
-        // Finds the {"answer": ...} object even inside code fences or after a sentence, so no provider is marked down for its wrapping.
-        using var doc = JsonText.Find(text, "answer");
-        if (doc is not null && doc.RootElement.TryGetProperty("answer", out var a))
-            return a.ValueKind == JsonValueKind.String ? a.GetString() ?? "" : a.ToString();
-        return text;
-    }
-
-    /// <summary>Each case sets its own simple, repeatable checks.</summary>
-    public static bool Score(PromptCase c, string answer)
-    {
-        var lower = answer.ToLowerInvariant();
-        if (c.ExpectAny is { Length: > 0 } && !c.ExpectAny.Any(e => lower.Contains(e.ToLowerInvariant()))) return false;
-        if (c.ExpectAll is { Length: > 0 } && !c.ExpectAll.All(e => lower.Contains(e.ToLowerInvariant()))) return false;
-        if (c.ExpectNone is { Length: > 0 } && c.ExpectNone.Any(e => lower.Contains(e.ToLowerInvariant()))) return false;
-        if (c.ExpectRegex is { } rx && !System.Text.RegularExpressions.Regex.IsMatch(answer, rx, System.Text.RegularExpressions.RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1))) return false;
-        if (c.MaxWords is { } max && answer.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length > max) return false;
-        if (c.MinQuestionMarks is { } q && answer.Count(ch => ch == '?') < q) return false;
-        return true;
     }
 }
