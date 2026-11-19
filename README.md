@@ -87,9 +87,11 @@ Without `LLM_API_KEY` and `LLM_MODEL` the endpoint answers 503 and nothing else 
 
 ```bash
 ollama pull qwen2.5:3b
-export LLM_BASE_URL=http://127.0.0.1:11434/v1 LLM_API_KEY=local LLM_MODEL=qwen2.5:3b LLM_TIMEOUT_SECONDS=180
+export LLM_BASE_URL=http://127.0.0.1:11434/v1 LLM_API_KEY=local LLM_MODEL=qwen2.5:3b LLM_TIMEOUT_SECONDS=300 LLM_TOTAL_TIMEOUT_SECONDS=600 TASK_MESSAGE_DEADLINE_SECONDS=300
 dotnet run --project FdeTracker.Api      # with DATABASE_URL and SUPABASE_URL set as above
 ```
+
+For the practice lab on a small local model, keep these longer time limits: measured on qwen2.5:3b (2026-11-19), one Day 2 batch of 4 candidates takes 77-125 s (once 180 s) and one task-assistant message 16-61 s, so the defaults (30 s per try, 60 s in total) time out. Gemini answers in seconds and needs no change.
 
 ### Comparing models and prompt versions (Evals)
 
