@@ -165,17 +165,13 @@ public sealed class LabScoringTests
 /// <summary>The practice lab on the real pipeline with a scripted model: runs, scoring, limits, logging, saved runs, samples and who may do what.</summary>
 [TestCaseOrderer("FdeTracker.Tests.NameOrderer", "FdeTracker.Tests")]
 [Collection(ApiFixture.Collection)]
-public sealed class LabApiTests(ApiFixture api) : IClassFixture<ApiFixture>, IAsyncLifetime
+public sealed class LabApiTests(ApiFixture api) : IClassFixture<ApiFixture>
 {
-    // Sign-in is invite-only: these people are invited (as members of the seeded program) before they first sign in.
-    public Task InitializeAsync() => api.Invite(B, C, D);
-    public Task DisposeAsync() => Task.CompletedTask;
-
     static readonly TestUser Admin = new(ApiFixture.Id(1), "boss@fiftyfivetech.io");
     static readonly TestUser B = new(ApiFixture.Id(2), "b@fiftyfivetech.io");
     static readonly TestUser C = new(ApiFixture.Id(3), "c@fiftyfivetech.io");
     static readonly TestUser D = new(ApiFixture.Id(4), "d@fiftyfivetech.io");
-    static readonly TestUser E = new(ApiFixture.Id(5), "e@fiftyfivetech.io"); // not invited: waits for approval
+    static readonly TestUser E = new(ApiFixture.Id(5), "e@fiftyfivetech.io"); // 5th person: waits for approval
     const string Key = "AIzaSyOWNKEY_0123456789abcdefghijklmnop";
 
     static LlmResult Answer(string text) => new(text, 11, 7, 42, "fake-model");
@@ -504,12 +500,8 @@ public sealed class LabOwnKeyFixture : ApiFixture
 
 [TestCaseOrderer("FdeTracker.Tests.NameOrderer", "FdeTracker.Tests")]
 [Collection(ApiFixture.Collection)]
-public sealed class LabOwnKeyTests(LabOwnKeyFixture api) : IClassFixture<LabOwnKeyFixture>, IAsyncLifetime
+public sealed class LabOwnKeyTests(LabOwnKeyFixture api) : IClassFixture<LabOwnKeyFixture>
 {
-    // Sign-in is invite-only: these people are invited (as members of the seeded program) before they first sign in.
-    public Task InitializeAsync() => api.Invite(B);
-    public Task DisposeAsync() => Task.CompletedTask;
-
     const string Key = "AIzaSyOWNKEY_0123456789abcdefghijklmnop";
     static readonly TestUser Admin = new(ApiFixture.Id(1), "boss@fiftyfivetech.io");
     static readonly TestUser B = new(ApiFixture.Id(2), "b@fiftyfivetech.io");
@@ -550,7 +542,6 @@ public sealed class LabOwnKeyTests(LabOwnKeyFixture api) : IClassFixture<LabOwnK
     public async Task K03_own_key_calls_and_server_calls_have_separate_daily_counts()
     {
         var c = new TestUser(ApiFixture.Id(3), "c@fiftyfivetech.io");
-        await api.Invite(c);
         await api.Call("GET", "/api/me", Admin);
         await api.Call("GET", "/api/me", c);
         api.Llm.Handler = (_, _) => new LlmResult("{\"answer\": \"Paris\"}", 1, 1, 1, "fake-model");

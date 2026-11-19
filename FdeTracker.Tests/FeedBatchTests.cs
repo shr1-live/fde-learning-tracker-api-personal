@@ -6,12 +6,8 @@ namespace FdeTracker.Tests;
 /// Its own database (own fixture). Member M1 and M2 are learners, R is promoted to reviewer, Admin is the owner account.</summary>
 [TestCaseOrderer("FdeTracker.Tests.NameOrderer", "FdeTracker.Tests")]
 [Collection(ApiFixture.Collection)]
-public sealed class FeedBatchTests(ApiFixture api) : IClassFixture<ApiFixture>, IAsyncLifetime
+public sealed class FeedBatchTests(ApiFixture api) : IClassFixture<ApiFixture>
 {
-    // Sign-in is invite-only: these people are invited (as members of the seeded program) before they first sign in.
-    public Task InitializeAsync() => api.Invite(M1, R, M2);
-    public Task DisposeAsync() => Task.CompletedTask;
-
     static readonly TestUser Admin = new(ApiFixture.Id(1), "boss@fiftyfivetech.io");
     static readonly TestUser M1 = new(ApiFixture.Id(201), "member.one@fiftyfivetech.io");
     static readonly TestUser R = new(ApiFixture.Id(202), "reviewer.r@fiftyfivetech.io");
@@ -134,7 +130,7 @@ public sealed class FeedBatchTests(ApiFixture api) : IClassFixture<ApiFixture>, 
         var sent = await api.Call("PATCH", $"/api/content/{draft}", R, new { title = "Middle reviewer note", submit = true });
         Assert.Equal("approved", (string)sent.Body["status"]!);
 
-        var feed = Titles((await api.Call("GET", "/api/content/feed?topic=evaluation", M2)).Body["items"]);
+        var feed = Titles((await api.Call("GET", "/api/feed?topic=evaluation", M2)).Body["items"]);
         Assert.Contains("Zeta reviewer pick", feed);
         Assert.Contains("alpha admin note", feed);
         Assert.Contains("Middle reviewer note", feed);
@@ -148,33 +144,33 @@ public sealed class FeedBatchTests(ApiFixture api) : IClassFixture<ApiFixture>, 
     public async Task F05_the_feed_sorts_newest_oldest_by_title_and_pages_only_newest_first()
     {
         // In creation order: Zeta reviewer pick, alpha admin note, Middle reviewer note (published by the PATCH, last).
-        async Task<string[]> Sorted(string sort, string extra = "") => Titles((await api.Call("GET", $"/api/content/feed?topic=evaluation&sort={sort}{extra}", M2)).Body["items"]);
+        async Task<string[]> Sorted(string sort, string extra = "") => Titles((await api.Call("GET", $"/api/feed?topic=evaluation&sort={sort}{extra}", M2)).Body["items"]);
         Assert.Equal(new[] { "Middle reviewer note", "alpha admin note", "Zeta reviewer pick" }, await Sorted("newest"));
-        Assert.Equal(new[] { "Middle reviewer note", "alpha admin note", "Zeta reviewer pick" }, Titles((await api.Call("GET", "/api/content/feed?topic=evaluation", M2)).Body["items"])); // default
+        Assert.Equal(new[] { "Middle reviewer note", "alpha admin note", "Zeta reviewer pick" }, Titles((await api.Call("GET", "/api/feed?topic=evaluation", M2)).Body["items"])); // default
         Assert.Equal(new[] { "Zeta reviewer pick", "alpha admin note", "Middle reviewer note" }, await Sorted("oldest"));
         Assert.Equal(new[] { "alpha admin note", "Middle reviewer note", "Zeta reviewer pick" }, await Sorted("title")); // ignores capital letters
 
-        var newestPage = await api.Call("GET", "/api/content/feed?topic=evaluation&sort=newest&limit=1", M2);
+        var newestPage = await api.Call("GET", "/api/feed?topic=evaluation&sort=newest&limit=1", M2);
         Assert.NotNull(newestPage.Body["next"]);
-        var second = await api.Call("GET", $"/api/content/feed?topic=evaluation&sort=newest&limit=1&before={Uri.EscapeDataString((string)newestPage.Body["next"]!)}", M2);
+        var second = await api.Call("GET", $"/api/feed?topic=evaluation&sort=newest&limit=1&before={Uri.EscapeDataString((string)newestPage.Body["next"]!)}", M2);
         Assert.Equal(new[] { "alpha admin note" }, Titles(second.Body["items"]));
         foreach (var sort in new[] { "oldest", "title", "recommended" })
         {
-            var page = await api.Call("GET", $"/api/content/feed?topic=evaluation&sort={sort}&limit=1", M2);
+            var page = await api.Call("GET", $"/api/feed?topic=evaluation&sort={sort}&limit=1", M2);
             Assert.Single(page.Body["items"]!.AsArray());
             Assert.Null(page.Body["next"]); // one page only for these orders
         }
 
-        Assert.Equal(200, (await api.Call("GET", "/api/content/feed?limit=50", M2)).Status);
-        Assert.Equal(400, (await api.Call("GET", "/api/content/feed?limit=51", M2)).Status);
-        Assert.Equal(400, (await api.Call("GET", "/api/content/feed?sort=popular", M2)).Status);
-        Assert.Equal(400, (await api.Call("GET", "/api/content/feed?sort=newest;drop", M2)).Status);
+        Assert.Equal(200, (await api.Call("GET", "/api/feed?limit=50", M2)).Status);
+        Assert.Equal(400, (await api.Call("GET", "/api/feed?limit=51", M2)).Status);
+        Assert.Equal(400, (await api.Call("GET", "/api/feed?sort=popular", M2)).Status);
+        Assert.Equal(400, (await api.Call("GET", "/api/feed?sort=newest;drop", M2)).Status);
     }
 
     [Fact]
     public async Task F06_only_the_review_team_recommends_and_only_approved_items()
     {
-        var items = (await api.Call("GET", "/api/content/feed?topic=evaluation&sort=oldest", M2)).Body["items"]!.AsArray();
+        var items = (await api.Call("GET", "/api/feed?topic=evaluation&sort=oldest", M2)).Body["items"]!.AsArray();
         string zeta = (string)items[0]!["id"]!, alpha = (string)items[1]!["id"]!;
         Assert.All(items, i => Assert.False((bool)i!["recommended"]!));
         Assert.All(items, i => Assert.False(i!.AsObject().ContainsKey("author_role"))); // roles are never shown
@@ -195,14 +191,14 @@ public sealed class FeedBatchTests(ApiFixture api) : IClassFixture<ApiFixture>, 
 
         // Recommended first (newest of those first), then the rest newest first.
         Assert.Equal(new[] { "alpha admin note", "Zeta reviewer pick", "Middle reviewer note" },
-            Titles((await api.Call("GET", "/api/content/feed?topic=evaluation&sort=recommended", M2)).Body["items"]));
+            Titles((await api.Call("GET", "/api/feed?topic=evaluation&sort=recommended", M2)).Body["items"]));
         Assert.True((bool)(await api.Call("GET", $"/api/content/{zeta}", M2)).Body["recommended"]!);
 
         var off = await api.Call("POST", $"/api/content/{alpha}/recommend", R, new { recommended = false });
         Assert.False((bool)off.Body["recommended"]!);
         Assert.Equal(0, await api.Count($"select count(*) from content_items where id = '{alpha}' and recommended_at is not null"));
         Assert.Equal(new[] { "Zeta reviewer pick", "Middle reviewer note", "alpha admin note" },
-            Titles((await api.Call("GET", "/api/content/feed?topic=evaluation&sort=recommended", M2)).Body["items"]));
+            Titles((await api.Call("GET", "/api/feed?topic=evaluation&sort=recommended", M2)).Body["items"]));
         Assert.Equal(3, await api.Count("select count(*) from audit_log where action in ('content.recommend', 'content.unrecommend')"));
     }
 

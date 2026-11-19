@@ -6,8 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace FdeTracker.Api.Controllers;
 
-/// <summary>The old personal plans ("My plan"). Moved from /api/programs to /api/plans when Programs V3 took that path.</summary>
-[Route("api/plans"), RequireApproved]
+[Route("api/programs"), RequireApproved]
 public sealed class ProgramsController(ProgramService programs) : ApiControllerBase
 {
     const string SlugPattern = "^[a-z0-9-]{2,60}\\z";

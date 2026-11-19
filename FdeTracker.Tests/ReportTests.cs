@@ -3,15 +3,11 @@ using System.Text.Json.Nodes;
 namespace FdeTracker.Tests;
 
 /// <summary>Progress reports per person: a learner's own report, and the reviewers' list of everyone and anyone's report.
-/// Its own database (own fixture). M1 and M2 are learners, R is promoted to reviewer, P stays pending (not invited), Admin is the owner account.</summary>
+/// Its own database (own fixture). M1 and M2 are learners, R is promoted to reviewer, P stays pending (only three free seats), Admin is the owner account.</summary>
 [TestCaseOrderer("FdeTracker.Tests.NameOrderer", "FdeTracker.Tests")]
 [Collection(ApiFixture.Collection)]
-public sealed class ReportTests(ApiFixture api) : IClassFixture<ApiFixture>, IAsyncLifetime
+public sealed class ReportTests(ApiFixture api) : IClassFixture<ApiFixture>
 {
-    // Sign-in is invite-only: these people are invited (as members of the seeded program) before they first sign in.
-    public Task InitializeAsync() => api.Invite(M1, M2, R);
-    public Task DisposeAsync() => Task.CompletedTask;
-
     static readonly TestUser Admin = new(ApiFixture.Id(1), "boss@fiftyfivetech.io");
     static readonly TestUser M1 = new(ApiFixture.Id(301), "member.one@fiftyfivetech.io");
     static readonly TestUser M2 = new(ApiFixture.Id(302), "member.two@fiftyfivetech.io");
