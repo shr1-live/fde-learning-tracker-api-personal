@@ -38,7 +38,7 @@ public sealed class UserService(Db db, UserRepository users, BatchRepository bat
         if (!isAdmin && await programs.AcceptInvites(s, user.Id, email) > 0)
         {
             await audit.Record(s, user.Id, "user.invite_accepted", user.Id.ToString(), new { });
-            if (!user.IsApproved) user = await users.Approve(s, user.Id);
+            if (user.AccessStatus == "pending") user = await users.Approve(s, user.Id); // never lifts an admin "rejected"
         }
         return user;
     });

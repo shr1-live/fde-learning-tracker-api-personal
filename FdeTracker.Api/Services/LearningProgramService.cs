@@ -157,7 +157,8 @@ public sealed class LearningProgramService(Db db, LearningProgramRepository repo
         {
             await repo.AddMember(s, id, existing.Id, b.Role);
             await repo.CloseInvite(s, id, b.Email);
-            if (!existing.IsApproved) await users.SetAccess(s, existing.Id, "approved");
+            // Only "pending" becomes approved: a coordinator must never undo the admin's "rejected".
+            if (existing.AccessStatus == "pending") await users.SetAccess(s, existing.Id, "approved");
             await audit.Record(s, user.Id, "program.member_add", existing.Id.ToString(), new { program_id = id, role = b.Role });
             return new LpInviteResultView { Status = "added" };
         }

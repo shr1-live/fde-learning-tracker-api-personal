@@ -18,6 +18,7 @@ public sealed class ProgramsV3Tests(ApiFixture api) : IClassFixture<ApiFixture>
     static readonly TestUser Late = new(ApiFixture.Id(405), "late@fiftyfivetech.io");
     static readonly TestUser Legacy = new(ApiFixture.Id(406), "legacy@fiftyfivetech.io");
     static readonly TestUser Nobody = new(ApiFixture.Id(407), "nobody@fiftyfivetech.io");
+    static readonly TestUser Barred = new(ApiFixture.Id(408), "barred@fiftyfivetech.io");
 
     // Shared between the ordered steps (xUnit makes a new instance per test).
     static string Fde = "", DevOps = "", Day1 = "", Day2 = "", DevOpsDay = "";
@@ -83,6 +84,13 @@ public sealed class ProgramsV3Tests(ApiFixture api) : IClassFixture<ApiFixture>
         // The admin stays admin.
         Assert.Equal("admin", (string)(await api.Call("GET", "/api/me", Admin)).Body["role"]!);
         Assert.Equal(400, await Status("POST", $"{P(Fde)}/invites", Co, new { email = Admin.Email, role = "member" }));
+
+        // A coordinator's invite never lifts the admin's "rejected" (review finding): added to the program, still locked out.
+        Assert.Equal("pending", (string)(await api.Call("GET", "/api/me", Barred)).Body["access"]!);
+        Assert.Equal(200, await Status("POST", $"/api/admin/users/{Barred.Id}/access", Admin, new { status = "rejected" }));
+        Assert.Equal("added", (string)(await api.Call("POST", $"{P(Fde)}/invites", Co, new { email = Barred.Email, role = "member" })).Body["status"]!);
+        Assert.Equal("rejected", (string)(await api.Call("GET", "/api/me", Barred)).Body["access"]!);
+        Assert.Equal(403, await Status("GET", "/api/feed", Barred));
     }
 
     [Fact]
