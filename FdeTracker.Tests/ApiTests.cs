@@ -7,17 +7,13 @@ namespace FdeTracker.Tests;
 
 [TestCaseOrderer("FdeTracker.Tests.NameOrderer", "FdeTracker.Tests")]
 [Collection(ApiFixture.Collection)] // classes that start the API run one at a time: the fixture sets process-wide settings (DATABASE_URL)
-public sealed class ApiTests(ApiFixture api) : IClassFixture<ApiFixture>, IAsyncLifetime
+public sealed class ApiTests(ApiFixture api) : IClassFixture<ApiFixture>
 {
-    // Sign-in is invite-only: these people are invited (as members of the seeded program) before they first sign in.
-    public Task InitializeAsync() => api.Invite(B, C, D);
-    public Task DisposeAsync() => Task.CompletedTask;
-
     static readonly TestUser Admin = new(ApiFixture.Id(1), "boss@fiftyfivetech.io");
     static readonly TestUser B = new(ApiFixture.Id(2), "b@fiftyfivetech.io");
     static readonly TestUser C = new(ApiFixture.Id(3), "c@fiftyfivetech.io");
     static readonly TestUser D = new(ApiFixture.Id(4), "d@fiftyfivetech.io");
-    static readonly TestUser E = new(ApiFixture.Id(5), "e@fiftyfivetech.io"); // not invited: waits
+    static readonly TestUser E = new(ApiFixture.Id(5), "e@fiftyfivetech.io"); // 5th person: no free seat left
     static readonly TestUser Outsider = new(ApiFixture.Id(9), "x@gmail.com");
 
     static string[] Titles(JsonNode? items) => items!.AsArray().Select(i => (string)i!["title"]!).ToArray();
@@ -43,12 +39,12 @@ public sealed class ApiTests(ApiFixture api) : IClassFixture<ApiFixture>, IAsync
     }
 
     [Fact]
-    public async Task T03_admin_and_invited_people_are_approved_and_an_uninvited_person_waits()
+    public async Task T03_admin_and_first_three_members_are_approved_and_the_fifth_person_waits()
     {
         Assert.Equal("admin", (string)(await api.Call("GET", "/api/me", Admin)).Body["role"]!);
         foreach (var u in new[] { B, C, D }) Assert.Equal("approved", (string)(await api.Call("GET", "/api/me", u)).Body["access"]!);
         Assert.Equal("pending", (string)(await api.Call("GET", "/api/me", E)).Body["access"]!);
-        Assert.Equal(403, (await api.Call("GET", "/api/content/feed", E)).Status);
+        Assert.Equal(403, (await api.Call("GET", "/api/feed", E)).Status);
         Assert.Equal(403, (await api.Call("POST", "/api/content", E, new { })).Status);
     }
 
@@ -59,7 +55,7 @@ public sealed class ApiTests(ApiFixture api) : IClassFixture<ApiFixture>, IAsync
         Assert.Equal(403, (await api.Call("POST", $"/api/admin/users/{E.Id}/access", B, new { status = "approved" })).Status);
         Assert.Equal(400, (await api.Call("POST", $"/api/admin/users/{Admin.Id}/access", Admin, new { status = "rejected" })).Status);
         Assert.Equal(200, (await api.Call("POST", $"/api/admin/users/{E.Id}/access", Admin, new { status = "approved" })).Status);
-        Assert.Equal(200, (await api.Call("GET", "/api/content/feed", E)).Status);
+        Assert.Equal(200, (await api.Call("GET", "/api/feed", E)).Status);
         Assert.Equal(404, (await api.Call("POST", $"/api/admin/users/{Admin.Id}/role", Admin, new { role = "member" })).Status);
         Assert.Equal(200, (await api.Call("POST", $"/api/admin/users/{C.Id}/role", Admin, new { role = "reviewer" })).Status);
     }
@@ -75,7 +71,7 @@ public sealed class ApiTests(ApiFixture api) : IClassFixture<ApiFixture>, IAsync
         Assert.Equal("in_review", (string)general.Body["status"]!);
         string gid = (string)general.Body["id"]!, pid = (string)py.Body["id"]!;
 
-        Assert.Empty((await api.Call("GET", "/api/content/feed", D)).Body["items"]!.AsArray());
+        Assert.Empty((await api.Call("GET", "/api/feed", D)).Body["items"]!.AsArray());
         Assert.Equal(404, (await api.Call("GET", $"/api/content/{gid}", D)).Status);
         Assert.Equal(200, (await api.Call("GET", $"/api/content/{gid}", B)).Status);
 
@@ -88,10 +84,10 @@ public sealed class ApiTests(ApiFixture api) : IClassFixture<ApiFixture>, IAsync
         Assert.Equal(200, (await api.Call("POST", $"/api/review/{pid}", C, new { decision = "approve" })).Status);
         Assert.Equal(409, (await api.Call("POST", $"/api/review/{pid}", C, new { decision = "approve" })).Status);
 
-        Assert.Equal(new[] { "Python RAG tutorial", "RAG in plain words" }, Titles((await api.Call("GET", "/api/content/feed", D)).Body["items"]).Order().ToArray());
-        Assert.Equal(new[] { "RAG in plain words" }, Titles((await api.Call("GET", "/api/content/feed", B)).Body["items"]));
-        Assert.Single((await api.Call("GET", "/api/content/feed?stack=general", D)).Body["items"]!.AsArray());
-        Assert.Empty((await api.Call("GET", "/api/content/feed?topic=agents", D)).Body["items"]!.AsArray());
+        Assert.Equal(new[] { "Python RAG tutorial", "RAG in plain words" }, Titles((await api.Call("GET", "/api/feed", D)).Body["items"]).Order().ToArray());
+        Assert.Equal(new[] { "RAG in plain words" }, Titles((await api.Call("GET", "/api/feed", B)).Body["items"]));
+        Assert.Single((await api.Call("GET", "/api/feed?stack=general", D)).Body["items"]!.AsArray());
+        Assert.Empty((await api.Call("GET", "/api/feed?topic=agents", D)).Body["items"]!.AsArray());
 
         Assert.Equal(409, (await api.Call("PATCH", $"/api/content/{gid}", B, new { title = "Sneaky edit" })).Status);
         var detail = await api.Call("GET", $"/api/content/{gid}", D);
@@ -136,8 +132,8 @@ public sealed class ApiTests(ApiFixture api) : IClassFixture<ApiFixture>, IAsync
         Assert.Equal(400, (await api.Call("POST", "/api/content", B, With(("title", "x")))).Status);
         Assert.Equal(400, (await api.Call("POST", "/api/content", B, With(("extra", 1), ("topic", "'; drop table app_users;--")))).Status);
         Assert.Equal(400, (await api.Call("POST", "/api/content", B, With(("extra", 1)))).Status); // unknown fields are refused
-        Assert.Equal(400, (await api.Call("GET", "/api/content/feed?limit=9999", B)).Status);
-        Assert.Equal(400, (await api.Call("GET", "/api/content/feed?before=garbage", B)).Status);
+        Assert.Equal(400, (await api.Call("GET", "/api/feed?limit=9999", B)).Status);
+        Assert.Equal(400, (await api.Call("GET", "/api/feed?before=garbage", B)).Status);
         Assert.Equal(400, (await api.Call("GET", "/api/content/not-a-uuid", B)).Status);
         Assert.Equal(400, (await api.Call("POST", "/api/content", B, "{ not json")).Status);
         Assert.Equal(413, (await api.Call("POST", "/api/content", B, new { x = new string('a', 70000) })).Status);
@@ -148,26 +144,26 @@ public sealed class ApiTests(ApiFixture api) : IClassFixture<ApiFixture>, IAsync
     [Fact]
     public async Task T08_programs_shared_programme_personal_progress_and_private_plans()
     {
-        var six = (await api.Call("GET", "/api/plans", B)).Body.AsArray().First(p => (string)p!["slug"]! == "fde-six-week")!;
+        var six = (await api.Call("GET", "/api/programs", B)).Body.AsArray().First(p => (string)p!["slug"]! == "fde-six-week")!;
         Assert.Equal(6, (int)six["total"]!);
-        var first = (await api.Call("GET", "/api/plans/fde-six-week", B)).Body["items"]![0]!;
+        var first = (await api.Call("GET", "/api/programs/fde-six-week", B)).Body["items"]![0]!;
         string firstId = (string)first["id"]!;
-        Assert.Equal(200, (await api.Call("PUT", $"/api/plans/fde-six-week/items/{firstId}/progress", B, new { done = true })).Status);
-        Assert.True((bool)(await api.Call("GET", "/api/plans/fde-six-week", B)).Body["items"]![0]!["done"]!);
-        Assert.False((bool)(await api.Call("GET", "/api/plans/fde-six-week", D)).Body["items"]![0]!["done"]!, "progress is per person");
+        Assert.Equal(200, (await api.Call("PUT", $"/api/programs/fde-six-week/items/{firstId}/progress", B, new { done = true })).Status);
+        Assert.True((bool)(await api.Call("GET", "/api/programs/fde-six-week", B)).Body["items"]![0]!["done"]!);
+        Assert.False((bool)(await api.Call("GET", "/api/programs/fde-six-week", D)).Body["items"]![0]!["done"]!, "progress is per person");
 
-        var mine = await api.Call("POST", "/api/plans", B, new { title = "My own plan" });
+        var mine = await api.Call("POST", "/api/programs", B, new { title = "My own plan" });
         Assert.Equal(201, mine.Status);
         string slug = (string)mine.Body["slug"]!;
-        var step = await api.Call("POST", $"/api/plans/{slug}/items", B, new { title = "Build a demo" });
+        var step = await api.Call("POST", $"/api/programs/{slug}/items", B, new { title = "Build a demo" });
         Assert.Equal(201, step.Status);
         string stepId = (string)step.Body["id"]!;
-        Assert.Equal(404, (await api.Call("GET", $"/api/plans/{slug}", D)).Status);
-        Assert.Equal(404, (await api.Call("POST", $"/api/plans/{slug}/items", D, new { title = "intrude" })).Status);
-        Assert.Equal(404, (await api.Call("PUT", $"/api/plans/{slug}/items/{stepId}/progress", D, new { done = true })).Status);
-        Assert.Equal(404, (await api.Call("POST", "/api/plans/fde-six-week/items", B, new { title = "edit shared" })).Status);
-        Assert.DoesNotContain((await api.Call("GET", "/api/plans", D)).Body.AsArray(), p => (string)p!["slug"]! == slug);
-        Assert.Equal(204, (await api.Call("DELETE", $"/api/plans/{slug}/items/{stepId}", B)).Status);
+        Assert.Equal(404, (await api.Call("GET", $"/api/programs/{slug}", D)).Status);
+        Assert.Equal(404, (await api.Call("POST", $"/api/programs/{slug}/items", D, new { title = "intrude" })).Status);
+        Assert.Equal(404, (await api.Call("PUT", $"/api/programs/{slug}/items/{stepId}/progress", D, new { done = true })).Status);
+        Assert.Equal(404, (await api.Call("POST", "/api/programs/fde-six-week/items", B, new { title = "edit shared" })).Status);
+        Assert.DoesNotContain((await api.Call("GET", "/api/programs", D)).Body.AsArray(), p => (string)p!["slug"]! == slug);
+        Assert.Equal(204, (await api.Call("DELETE", $"/api/programs/{slug}/items/{stepId}", B)).Status);
     }
 
     [Fact]
@@ -201,7 +197,7 @@ public sealed class ApiTests(ApiFixture api) : IClassFixture<ApiFixture>, IAsync
         string? cursor = null;
         for (var page = 0; page < 10; page++)
         {
-            var r = await api.Call("GET", "/api/content/feed?limit=2&stack=general" + (cursor is null ? "" : "&before=" + Uri.EscapeDataString(cursor)), B);
+            var r = await api.Call("GET", "/api/feed?limit=2&stack=general" + (cursor is null ? "" : "&before=" + Uri.EscapeDataString(cursor)), B);
             Assert.Equal(200, r.Status);
             seen.AddRange(Titles(r.Body["items"]));
             cursor = (string?)r.Body["next"];
@@ -223,7 +219,7 @@ public sealed class ApiTests(ApiFixture api) : IClassFixture<ApiFixture>, IAsync
     // ---- assistant (the model is scripted; no real LLM is called)
     const string Job = "We need a backend engineer with Python and Docker experience. Knowledge of PostgreSQL is a plus.";
     const string Profile = "Built REST APIs in Python for three years. Deployed services with Docker on AWS.";
-    static readonly TestUser F = new(ApiFixture.Id(6), "f@fiftyfivetech.io"); // not invited: waits for approval
+    static readonly TestUser F = new(ApiFixture.Id(6), "f@fiftyfivetech.io"); // 6th person: waits for approval
 
     static LlmResult Answer(string json) => new(json, 120, 80, 345, "fake-model");
     static object Req(string? profile = null, int candidates = 1, string? version = null, string? job = null) => new

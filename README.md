@@ -4,11 +4,10 @@ Backend for the FDE Learning Tracker. **ASP.NET Core on .NET 10** (MVC-style Web
 
 ## What it does
 
-- **Access:** verifies the Supabase sign-in token. Invite-only: the admin is always approved; anyone else only through a program invite (or an approval from before Programs V3).
+- **Access:** verifies the Supabase sign-in token. The admin and the first 3 other people are approved automatically; everyone after that waits for the admin.
 - **Content:** members submit articles, videos, links or notes for a topic (general, or for one tech stack). Nothing is public until a reviewer or the admin approves it.
-- **Content feed:** approved items only, by topic, with cursor paging. Everyone sees general items; picking a stack adds that stack's items.
-- **Programs (V3):** several invite-only learning programs with their own plan, forms, status, reports and Excel exports, plus a shared feed. See "Programs V3".
-- **Plans (old):** the shared six-week programme and private plans, now at `/api/plans`.
+- **Feed:** approved items only, by topic, with cursor paging. Everyone sees general items; picking a stack adds that stack's items.
+- **Programs:** the shared six-week programme, plus each person's own private plans, with per-person progress.
 - **Admin:** approve or reject people, make someone a reviewer.
 
 ## Structure (MVC)
@@ -17,7 +16,7 @@ Backend for the FDE Learning Tracker. **ASP.NET Core on .NET 10** (MVC-style Web
 FdeTracker.Api/
   Controllers/    C: HTTP only. Read the request, call a service, return a view model.
   Models/         M: domain records (AppUser, ContentRecord ...) and Requests/ (validated input DTOs).
-  Services/       M: business rules and transactions (limits, review rules, program roles).
+  Services/       M: business rules and transactions (limits, review rules, access seats).
   Repositories/   M: all SQL (Dapper). One class per table group.
   ViewModels/     V: the JSON shapes the API returns (no internal ids leak).
   Filters/        RequireApproved and RequireRole, run before model binding.
@@ -46,7 +45,7 @@ Request flow: route -> filters (approved / role) -> controller -> service (rules
 | `SUPABASE_URL` | yes | your Supabase project URL |
 | `SUPABASE_JWT_SECRET` | no | only for the legacy shared-secret (HS256) projects |
 | `CORS_ORIGINS` | yes | comma-separated frontend origins |
-| `ALLOWED_DOMAIN`, `ADMIN_EMAIL` | no | defaults in `render.yaml` (`FREE_SEATS` is no longer read: sign-in is invite-only) |
+| `ALLOWED_DOMAIN`, `ADMIN_EMAIL`, `FREE_SEATS` | no | defaults in `render.yaml` |
 | `PORT` | no | set by Render |
 
 ## Recruitment assistant (LLM feature)
@@ -196,21 +195,10 @@ A person hands in a task (for example a Week 1 day) with **proof**, and reviewer
 
 - **Roles:** `member` (a learner), `reviewer` (checks other people's work) and `admin` (the owner account set by `ADMIN_EMAIL`). The admin sets `member` or `reviewer` for anyone except the owner account (`POST /api/admin/users/{id}/role`); nobody else can become admin.
 - **Batches:** a group of learners who start on the same day. The admin creates them (`POST /api/admin/batches` with `{name, starts_on}`; `starts_on` is `YYYY-MM-DD` between 2020-01-01 and 2100-12-31; a name already in use gives 409) and puts a person in one or takes them out (`POST /api/admin/users/{id}/batch` with `{batch_id}` or `{batch_id: null}`; an unknown batch gives 404). Admin and reviewers can read the list (`GET /api/admin/batches`: `id, name, starts_on, members`, latest start first). `GET /api/me` shows the person's `batch` (`{id, name, starts_on}`) or `null`, and the admin's user list shows `batch_id` and `batch_name`.
-- **Shared feed:** everyone approved reads the same feed of approved items (`GET /api/content/feed`). `sort` is `newest` (default, pages with the `before` cursor), `oldest`, `title` or `recommended` (recommended items first, then newest); the last three return one page and `next` is null. `limit` is 1 to 50. Items show the author's display name, never their role.
+- **Shared feed:** everyone approved reads the same feed of approved items (`GET /api/feed`). `sort` is `newest` (default, pages with the `before` cursor), `oldest`, `title` or `recommended` (recommended items first, then newest); the last three return one page and `next` is null. `limit` is 1 to 50. Items show the author's display name, never their role.
 - **Publishing:** a member's submission waits in the review queue (`in_review`). A reviewer's or admin's own submission is published at once (logged as `content.auto_approved`).
 - **Recommended:** reviewers and the admin mark an approved item as recommended, or take the mark off (`POST /api/content/{id}/recommend` with `{recommended: true|false}`; a member gets 403, an item that is not approved gives 409).
 - Every admin change and every recommendation is written to the audit log.
-
-## Programs V3
-
-The contract is [`docs/PROGRAMS-V3.md`](docs/PROGRAMS-V3.md); migration `010_programs_v3.sql` adds the `lp_*` and `feed_*` tables (RLS on, public roles revoked), seeds the "FDE Training Program" (Week 1, Days 1-5 and the default forms) and makes approved people its members (reviewers its coordinators).
-
-- **Invite-only sign-in:** a coordinator or the admin invites an email to a program (`POST /api/programs/{id}/invites`). Someone who has signed in before is added and approved at once; anyone else is approved, and joins every program that invited them, on their next sign-in. An unknown email stays `pending`. No emails are sent.
-- **Roles per program:** the admin can do everything everywhere and creates programs; a coordinator manages one program (plan, forms, members, everyone's status and reports); a member ticks days and fills their own status. A program you are not in answers 404; an action your role does not allow answers 403.
-- **Status values** are checked against the program's form (unknown keys, required fields, text lengths, numbers 0-1000, ratings 1-5, https links). A daily date must be between 2020-01-01 and tomorrow.
-- **Exports:** `reports/daily.xlsx` (sheets `Summary` and `Status`) and `reports/program.xlsx` (`Readiness Guide` plus one sheet per person), built with ClosedXML.
-- **Feed:** `/api/feed` posts, likes and comments for everyone approved; at most 30 posts and 200 comments per person per UTC day. Authors or the admin delete.
-- **Moved:** the old content feed is now `GET /api/content/feed` and the old plans are `/api/plans`, because V3 uses `/api/feed` and `/api/programs`.
 
 ## Reports
 
@@ -250,17 +238,15 @@ dotnet test        # needs Docker running: starts a throwaway Postgres
 |---|---|---|
 | GET | `/health`, `/api/stacks`, `/api/topics` | public |
 | GET / PATCH | `/api/me` | signed in (PATCH: approved) |
-| GET | `/api/content/feed?topic=&stack=&sort=&limit=&before=` | approved |
+| GET | `/api/feed?topic=&stack=&sort=&limit=&before=` | approved |
 | POST | `/api/content/{id}/recommend` | reviewer, admin |
 | GET / POST | `/api/content/mine`, `/api/content/{id}`, `/api/content` | approved |
 | PATCH / DELETE | `/api/content/{id}` | author |
 | GET | `/api/review/queue` | reviewer, admin |
 | POST | `/api/review/{id}` | reviewer, admin |
-| GET / POST | `/api/plans`, `/api/plans/{slug}` | approved |
-| POST / DELETE | `/api/plans/{slug}/items[/{id}]` | plan owner |
-| PUT | `/api/plans/{slug}/items/{id}/progress` | approved |
-| GET / POST / PATCH | `/api/programs[/{id}]` and everything under it (see `docs/PROGRAMS-V3.md`) | approved; member, coordinator or admin of that program |
-| GET / POST / DELETE | `/api/feed`, `/api/feed/{id}`, `/api/feed/{id}/like`, `/api/feed/{id}/comments`, `/api/feed/comments/{id}` | approved |
+| GET / POST | `/api/programs`, `/api/programs/{slug}` | approved |
+| POST / DELETE | `/api/programs/{slug}/items[/{id}]` | plan owner |
+| PUT | `/api/programs/{slug}/items/{id}/progress` | approved |
 | GET | `/api/assistant/usage` | approved |
 | POST | `/api/assistant/analyze` | approved, daily cap |
 | POST | `/api/task-assistant/message`, `/confirm/{id}` | approved, daily cap |
