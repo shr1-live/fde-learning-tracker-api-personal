@@ -14,7 +14,7 @@ namespace FdeTracker.Api.Services.Tasks;
 /// either {"tool", "arguments"} or {"reply"}. The model never acts: every tool runs in TaskTools under the signed-in
 /// person's id, anything destructive waits for the person's explicit yes, and each call is written to the log.
 /// </summary>
-public sealed class TaskAssistantService(Db db, ILlmClient llm, LlmCallRepository calls, TaskRepository tasks, TaskTools tools, AuditRepository audit, AppOptions options, ILogger<TaskAssistantService> logger)
+public sealed class TaskAssistantService(Db db, ILlmClient llm, LlmCallLedger ledger, TaskRepository tasks, TaskTools tools, AuditRepository audit, AppOptions options, ILogger<TaskAssistantService> logger)
 {
     public const int MaxSteps = 4;
     public const string PromptVersion = "tasks-v1";
@@ -31,14 +31,8 @@ public sealed class TaskAssistantService(Db db, ILlmClient llm, LlmCallRepositor
         if (!llm.IsConfigured) throw new ApiException(503, "The assistant is not set up yet");
 
         // One reservation per message, under the same per-person lock and daily cap as the other assistant.
-        var callId = await db.Tx(async s =>
-        {
-            await calls.LockUser(s, user.Id);
-            var cap = LlmKeyScope.CapFor(options); // own-key calls are not charged to the shared limit
-            if (await calls.CountLastDay(s, user.Id) >= cap)
-                throw new ApiException(429, $"Daily limit of {cap} assistant requests reached. Try again tomorrow.");
-            return await calls.Reserve(s, user.Id, PromptVersion);
-        });
+        // One reservation per message, under the same per-person lock and daily cap as the other assistant.
+        var callId = await ledger.Reserve(user.Id, PromptVersion, "assistant requests");
 
         var actions = new List<ActionView>();
         var transcript = new List<string>();
@@ -157,8 +151,7 @@ public sealed class TaskAssistantService(Db db, ILlmClient llm, LlmCallRepositor
         return new PendingView { Id = id, Tool = step.Tool!, Summary = summary, ExpiresAt = expires };
     }
 
-    Task Finish(long callId, string? answerModel, int? inTokens, int? outTokens, int? latency, string status) =>
-        db.Read(async s => { await calls.Finish(s, callId, answerModel, inTokens, outTokens, latency, status); return 0; });
+    Task Finish(long callId, string? answerModel, int? inTokens, int? outTokens, int? latency, string status) => ledger.Finish(callId, answerModel, inTokens, outTokens, latency, status);
 
     /// <summary>The request is the person's own words. Everything that came back from a tool is data and is escaped, so a task title cannot pose as an instruction.</summary>
     static string BuildUser(string message, List<string> transcript) =>

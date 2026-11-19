@@ -12,6 +12,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The case types and scoring rules live in the API (shared with the web practice lab). -->
+    <Using Include="FdeTracker.Api.Services.Lab" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- The fixed test sets live at the repo root and are copied next to the tool. -->
     <Content Include="..\evals\*.json" Link="evals\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

@@ -22,6 +22,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The saved Day 1 run made with the current case file: the shared scoring must give the same pass or fail as that run.
+         (day1-local-results.json is older: it was scored with an earlier version of the case file, so it is not a valid reference.) -->
+    <Content Include="..\docs\evals\day1-local-v2-results.json" Link="evals-results\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\FdeTracker.Api\FdeTracker.Api.csproj" />
   </ItemGroup>
 

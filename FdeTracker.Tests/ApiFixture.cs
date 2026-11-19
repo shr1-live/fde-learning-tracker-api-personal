@@ -46,7 +46,7 @@ public sealed record ApiResult(int Status, JsonNode? Json)
 }
 
 /// <summary>Starts a real Postgres in Docker and the API against it, once for the whole test class.</summary>
-public sealed class ApiFixture : IAsyncLifetime
+public class ApiFixture : IAsyncLifetime
 {
     /// <summary>Every test class that starts the API joins this collection, so two APIs never start at once against each other's database.</summary>
     public const string Collection = "api";
@@ -79,12 +79,15 @@ public sealed class ApiFixture : IAsyncLifetime
         _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(b => b.ConfigureServices(s =>
         {
             s.RemoveAll<ILlmClient>(); // tests never call a real model
-            s.AddSingleton<ILlmClient>(Llm);
+            s.AddSingleton<ILlmClient>(BuildLlm);
         }));
         _client = _factory.CreateClient();
     }
 
     public FakeLlm Llm { get; } = new();
+
+    /// <summary>The model client the API gets. By default the scripted fake; a fixture may wrap it (for example to test the own-key switch).</summary>
+    protected virtual ILlmClient BuildLlm(IServiceProvider services) => Llm;
 
     public async Task DisposeAsync()
     {

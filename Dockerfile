@@ -5,6 +5,8 @@ COPY FdeTracker.Api/FdeTracker.Api.csproj FdeTracker.Api/
 RUN dotnet restore FdeTracker.Api
 COPY FdeTracker.Api FdeTracker.Api
 COPY migrations migrations
+# The practice lab builds the Day 1 and Day 2 case files into the API.
+COPY evals/day1-prompts.json evals/day2-cases.json evals/
 RUN dotnet publish FdeTracker.Api -c Release -o /app --no-restore
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0

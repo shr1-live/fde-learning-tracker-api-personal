@@ -25,4 +25,10 @@
     <Content Include="Prompts\*.md" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The practice lab runs the same fixed cases as the evaluation tool; the files are built into the API. -->
+    <EmbeddedResource Include="..\evals\day1-prompts.json" LogicalName="FdeTracker.Api.Lab.day1-prompts.json" />
+    <EmbeddedResource Include="..\evals\day2-cases.json" LogicalName="FdeTracker.Api.Lab.day2-cases.json" />
+  </ItemGroup>
+
 </Project>

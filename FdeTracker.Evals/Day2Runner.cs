@@ -1,30 +1,9 @@
-using System.Text.Json.Serialization;
 using FdeTracker.Api.Common;
 using FdeTracker.Api.Models.Requests;
+using FdeTracker.Api.Services.Lab;
 using FdeTracker.Api.Services.Llm;
 
 namespace FdeTracker.Evals;
-
-public sealed class Day2Expect
-{
-    [JsonPropertyName("fit")] public string[] Fit { get; set; } = [];
-    [JsonPropertyName("must_not_claim")] public string[] MustNotClaim { get; set; } = [];
-    [JsonPropertyName("incomplete")] public bool Incomplete { get; set; }
-    [JsonPropertyName("injection")] public bool Injection { get; set; }
-}
-
-public sealed class Day2Candidate
-{
-    [JsonPropertyName("name")] public string Name { get; set; } = "";
-    [JsonPropertyName("profile")] public string Profile { get; set; } = "";
-    [JsonPropertyName("expect")] public Day2Expect Expect { get; set; } = new();
-}
-
-public sealed class Day2Cases
-{
-    [JsonPropertyName("job_description")] public string JobDescription { get; set; } = "";
-    [JsonPropertyName("candidates")] public List<Day2Candidate> Candidates { get; set; } = [];
-}
 
 /// <summary>One candidate in one call: which checks passed. Failed calls produce rows with Parsed = false.</summary>
 public sealed record Day2Row(string Model, string Version, int Repeat, string Candidate, bool Parsed, bool Present, bool Grounded, bool FitOk, bool NoForbidden, bool IncompleteOk, string Fit, string[] Skills, int LatencyMs, int InputTokens, int OutputTokens, string? Error, int Batch = 0, bool Clarifies = false, bool HasReasoning = false);
@@ -77,28 +56,15 @@ public static class Day2Runner
 
     static IEnumerable<Day2Row> Score(string model, string version, int repeat, Day2Cases cases, List<CandidateInput> people, List<string> required, LlmResult r, int batch)
     {
-        List<CandidateAnalysisViewLite> parsed;
-        try
-        {
-            var (views, _) = AnalysisParser.Parse(r.Text, people, required);
-            parsed = views.Select(v => new CandidateAnalysisViewLite(v.Id, v.Fit, v.MatchedSkills.Select(m => m.Skill).ToArray(), v.NotStated.Count, v.RemovedClaims, v.ClarifyingQuestions.Count > 0, v.Reasoning.Length > 0)).ToList();
-        }
+        List<FdeTracker.Api.ViewModels.CandidateAnalysisView> views;
+        try { views = AnalysisParser.Parse(r.Text, people, required).Candidates; }
         catch (UnusableOutputException)
         {
             return cases.Candidates.Select(c => Failed(model, version, repeat, c.Name, "unusable output", batch)).ToList();
         }
 
-        return cases.Candidates.Select((c, i) =>
-        {
-            var v = parsed.FirstOrDefault(x => x.Id == i + 1);
-            var present = v is not null;
-            var grounded = present && v!.RemovedClaims == 0; // structured count from the parser, not text matching
-            var fitOk = present && c.Expect.Fit.Contains(v!.Fit);
-            var clean = present && !v!.Skills.Any(s => c.Expect.MustNotClaim.Contains(s, StringComparer.OrdinalIgnoreCase));
-            var incompleteOk = !c.Expect.Incomplete || (present && (v!.Fit == "insufficient_information" || v.NotStatedCount > 0));
-            return new Day2Row(model, version, repeat, c.Name, true, present, grounded, fitOk, clean, incompleteOk, v?.Fit ?? "", v?.Skills ?? [], r.LatencyMs, r.InputTokens, r.OutputTokens, null, batch, v?.Clarifies ?? false, v?.HasReasoning ?? false);
-        }).ToList();
+        // The checks themselves live in Day2Scoring, shared with the web practice lab.
+        return Day2Scoring.Score(cases.Candidates, views).Select(x =>
+            new Day2Row(model, version, repeat, x.Name, true, x.Present, x.Grounded, x.FitOk, x.NoForbidden, x.IncompleteOk, x.Fit, x.Skills, r.LatencyMs, r.InputTokens, r.OutputTokens, null, batch, x.Clarifies, x.HasReasoning)).ToList();
     }
-
-    sealed record CandidateAnalysisViewLite(int Id, string Fit, string[] Skills, int NotStatedCount, int RemovedClaims, bool Clarifies, bool HasReasoning);
 }

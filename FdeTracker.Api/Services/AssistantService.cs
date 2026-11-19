@@ -9,7 +9,7 @@ using FdeTracker.Api.ViewModels;
 namespace FdeTracker.Api.Services;
 
 /// <summary>Recruitment candidate analysis: builds the prompt, calls the model, then checks the answer before anyone sees it.</summary>
-public sealed class AssistantService(Db db, ILlmClient llm, LlmHttp llmHttp, AnalysisPipeline pipeline, LlmCallRepository calls, AppOptions options, ILogger<AssistantService> logger)
+public sealed class AssistantService(Db db, ILlmClient llm, LlmHttp llmHttp, AnalysisPipeline pipeline, LlmCallRepository calls, LlmCallLedger ledger, AppOptions options, ILogger<AssistantService> logger)
 {
     public async Task<AssistantUsageView> Usage(Guid userId) => new()
     {
@@ -23,14 +23,7 @@ public sealed class AssistantService(Db db, ILlmClient llm, LlmHttp llmHttp, Ana
         var version = req.PromptVersion ?? PromptLibrary.DefaultVersion;
 
         // Reserve the call before anything is sent, under a per-person lock: parallel or aborted requests still count.
-        var callId = await db.Tx(async s =>
-        {
-            await calls.LockUser(s, userId);
-            var cap = LlmKeyScope.CapFor(options); // own-key calls are not charged to the shared limit
-            if (await calls.CountLastDay(s, userId) >= cap)
-                throw new ApiException(429, $"Daily limit of {cap} analyses reached. Try again tomorrow.");
-            return await calls.Reserve(s, userId, version);
-        });
+        var callId = await ledger.Reserve(userId, version, "analyses");
 
         var required = SkillTools.ExtractSkills(req.JobDescription);
         LlmResult result;
@@ -76,8 +69,7 @@ public sealed class AssistantService(Db db, ILlmClient llm, LlmHttp llmHttp, Ana
         catch (LlmException e) { throw LlmFailure.ToApi(e, ownKey: true); }
     }
 
-    Task Finish(long callId, string? model, int? inTokens, int? outTokens, int? latency, string status) =>
-        db.Read(async s => { await calls.Finish(s, callId, model, inTokens, outTokens, latency, status); return 0; });
+    Task Finish(long callId, string? model, int? inTokens, int? outTokens, int? latency, string status) => ledger.Finish(callId, model, inTokens, outTokens, latency, status);
 
     /// <summary>All job and candidate text is wrapped in tags with angle brackets escaped: it is data, and it cannot close a tag or fake one.</summary>
     static string BuildUserMessage(AnalyzeRequest req) => PromptText.UserMessage(req.JobDescription, req.Candidates);
