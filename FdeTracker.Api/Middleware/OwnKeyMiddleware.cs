@@ -15,8 +15,8 @@ public sealed class OwnKeyMiddleware(RequestDelegate next)
     public const string ModelHeader = "X-Gemini-Model";
     const string ModelsPath = "/api/assistant/models";
 
-    // Google API keys are "AIza" followed by letters, digits, "_" and "-". Anything else is refused before it goes anywhere.
-    static readonly Regex KeyShape = new(@"^AIza[0-9A-Za-z_\-]{30,60}\z", RegexOptions.CultureInvariant | RegexOptions.Compiled, TimeSpan.FromMilliseconds(50));
+    // Google API keys come in two shapes: the classic "AIza..." and the newer "AQ...." (letters, digits, "_", "-", "."). Anything else is refused before it goes anywhere.
+    static readonly Regex KeyShape = new(@"^(AIza[0-9A-Za-z_\-]{30,60}|AQ\.[0-9A-Za-z_\-.]{20,300})\z", RegexOptions.CultureInvariant | RegexOptions.Compiled, TimeSpan.FromMilliseconds(50));
     static readonly Regex ModelShape = new(@"^gemini-[a-z0-9][a-z0-9.\-]{1,50}\z", RegexOptions.CultureInvariant | RegexOptions.Compiled, TimeSpan.FromMilliseconds(50));
 
     static bool UsesModel(PathString path) =>
@@ -30,7 +30,7 @@ public sealed class OwnKeyMiddleware(RequestDelegate next)
             return;
         }
         if (values.Count != 1 || values[0] is not { } raw || !KeyShape.IsMatch(raw.Trim()))
-            throw new ApiException(400, "That does not look like a Gemini API key. It starts with AIza. Paste the key from Google AI Studio and try again.");
+            throw new ApiException(400, "That does not look like a Gemini API key (they start with AIza or AQ.). Paste the key from Google AI Studio and try again.");
 
         string? model = null;
         if (ctx.Request.Headers.TryGetValue(ModelHeader, out var m))
