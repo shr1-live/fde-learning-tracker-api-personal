@@ -17,7 +17,7 @@ One person can be a member of one program and a coordinator of another. Everyone
 
 **Existing data (migration).** Approved non-admin users become members of the seeded FDE program. Users with role `reviewer` become its coordinators. The old tables and endpoints are not touched.
 
-## Tables (migration `009_programs_v3.sql`, idempotent, RLS on and public roles revoked like 008)
+## Tables (migration `010_programs_v3.sql`, idempotent, RLS on and public roles revoked like 008)
 
 - `lp_programs(id uuid pk, name text unique 2-80, description text <=600 null, starts_on date null, created_at)`
 - `lp_members(program_id, user_id, role in ('coordinator','member'), added_at, pk(program_id,user_id))`
