@@ -44,7 +44,7 @@ public sealed class LabRunsController(LabRunService runs) : ApiControllerBase
     public async Task<IActionResult> Samples() => Ok(await runs.Samples());
 
     [HttpPost("runs/{id:guid}/pin"), RequireRole("admin")]
-    public async Task<IActionResult> Pin(Guid id) => Ok(await runs.Pin(id));
+    public async Task<IActionResult> Pin(Guid id) => Ok(await runs.Pin(CurrentUser, id));
 
     [HttpDelete("runs/{id:guid}/pin"), RequireRole("admin")]
     public async Task<IActionResult> Unpin(Guid id) => Ok(await runs.Unpin(id));

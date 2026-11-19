@@ -27,7 +27,8 @@ public sealed partial class LabRunService(Db db, LabRunRepository runs)
     {
         var json = req.Result.GetRawText();
         if (Encoding.UTF8.GetByteCount(json) > MaxResultBytes) throw new ApiException(413, "The result is too large to save. The limit is 64 KB.");
-        if (KeyLike().IsMatch(json)) throw ApiException.BadRequest("The result seems to contain an API key. Remove it before saving.");
+        if (KeyLike().IsMatch(json) || KeyLike().IsMatch(req.Label) || req.Models.Any(m => KeyLike().IsMatch(m)))
+            throw ApiException.BadRequest("The result seems to contain an API key. Remove it before saving.");
         var models = req.Models.Select(m => m.Trim()).ToArray();
 
         var row = await db.Tx(async s =>
@@ -54,11 +55,15 @@ public sealed partial class LabRunService(Db db, LabRunRepository runs)
         return 0;
     });
 
-    /// <summary>Admin only (checked by the controller). Unpins the day's previous sample in the same transaction.</summary>
-    public async Task<LabRunView> Pin(Guid id) => Run(await db.Tx(async s =>
+    /// <summary>
+    /// Admin only (checked by the controller), and only the admin's OWN run: someone else's private run is never published without them.
+    /// Unpins the day's previous sample in the same transaction. Unpin works on any run, so a bad pin can always be removed.
+    /// </summary>
+    public async Task<LabRunView> Pin(AppUser admin, Guid id) => Run(await db.Tx(async s =>
     {
         await runs.LockSamples(s);
-        var row = await runs.ById(s, id, forUpdate: true) ?? throw ApiException.NotFound("Run not found");
+        var row = await runs.ById(s, id, forUpdate: true);
+        if (row is null || row.UserId != admin.Id) throw ApiException.NotFound("Run not found");
         await runs.Pin(s, id, row.Day);
         row.IsSample = true;
         return row;

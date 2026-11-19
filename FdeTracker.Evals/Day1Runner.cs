@@ -1,5 +1,4 @@
 using FdeTracker.Api.Common;
-using FdeTracker.Api.Services.Lab;
 using FdeTracker.Api.Services.Llm;
 
 namespace FdeTracker.Evals;

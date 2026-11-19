@@ -24,3 +24,8 @@ begin
   if exists (select 1 from pg_roles where rolname = 'anon') then revoke all on table public.lab_runs from anon; end if;
   if exists (select 1 from pg_roles where rolname = 'authenticated') then revoke all on table public.lab_runs from authenticated; end if;
 end $$;
+
+-- Model calls made with a person's own Gemini key are counted apart from calls on the server's model, so a lab run that mixes
+-- the two (Day 1: model A on the server, model B on Gemini) does not use up the small shared limit with Gemini calls.
+alter table llm_calls add column if not exists own_key boolean not null default false;
+create index if not exists llm_calls_user_key_day_idx on llm_calls (user_id, own_key, created_at desc);

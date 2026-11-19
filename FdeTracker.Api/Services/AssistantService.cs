@@ -14,7 +14,7 @@ public sealed class AssistantService(Db db, ILlmClient llm, LlmHttp llmHttp, Ana
     public async Task<AssistantUsageView> Usage(Guid userId) => new()
     {
         Configured = llm.IsConfigured, Model = llm.Model, DailyCap = LlmKeyScope.CapFor(options), UsingOwnKey = LlmKeyScope.Current is not null,
-        UsedToday = await db.Read(s => calls.CountLastDay(s, userId)), PromptVersions = PromptLibrary.Versions,
+        UsedToday = await db.Read(s => calls.CountLastDay(s, userId, LlmKeyScope.Current is not null)), PromptVersions = PromptLibrary.Versions,
     };
 
     public async Task<AnalysisView> Analyze(Guid userId, AnalyzeRequest req, CancellationToken ct)

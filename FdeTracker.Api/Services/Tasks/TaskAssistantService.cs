@@ -31,7 +31,6 @@ public sealed class TaskAssistantService(Db db, ILlmClient llm, LlmCallLedger le
         if (!llm.IsConfigured) throw new ApiException(503, "The assistant is not set up yet");
 
         // One reservation per message, under the same per-person lock and daily cap as the other assistant.
-        // One reservation per message, under the same per-person lock and daily cap as the other assistant.
         var callId = await ledger.Reserve(user.Id, PromptVersion, "assistant requests");
 
         var actions = new List<ActionView>();

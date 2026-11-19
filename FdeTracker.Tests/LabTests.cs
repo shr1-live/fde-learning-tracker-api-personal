@@ -408,11 +408,15 @@ public sealed class LabApiTests(ApiFixture api) : IClassFixture<ApiFixture>
         Assert.Equal(403, (await api.Call("DELETE", $"/api/lab/runs/{bRun}/pin", C)).Status);
         Assert.Equal(404, (await api.Call("POST", $"/api/lab/runs/{Guid.NewGuid()}/pin", Admin)).Status);
 
-        var pinned = await api.Call("POST", $"/api/lab/runs/{bRun}/pin", Admin);
+        Assert.Equal(404, (await api.Call("POST", $"/api/lab/runs/{bRun}/pin", Admin)).Status); // a learner's private run is never published by someone else
+
+        var pinned = await api.Call("POST", $"/api/lab/runs/{aRun}/pin", Admin);
         Assert.Equal(200, pinned.Status);
         Assert.True((bool)pinned.Body["is_sample"]!);
-        Assert.Equal(200, (await api.Call("POST", $"/api/lab/runs/{aRun}/pin", Admin)).Status); // re-pin day 1
+        var aRun2 = (string)(await api.Call("POST", "/api/lab/runs", Admin, Run(1, "Admin day 1 again"))).Body["id"]!;
+        Assert.Equal(200, (await api.Call("POST", $"/api/lab/runs/{aRun2}/pin", Admin)).Status); // re-pin day 1
         Assert.Equal(1, await api.Count("select count(*) from lab_runs where day = 1 and is_sample"));
+        Assert.Equal(200, (await api.Call("POST", $"/api/lab/runs/{aRun}/pin", Admin)).Status); // and back
 
         var samples = (await api.Call("GET", "/api/lab/samples", C)).Body["samples"]!.AsArray();
         var sample = Assert.Single(samples);
@@ -422,18 +426,16 @@ public sealed class LabApiTests(ApiFixture api) : IClassFixture<ApiFixture>
     }
 
     [Fact]
-    public async Task T15_a_pinned_run_cannot_be_deleted_by_its_owner_until_unpinned()
+    public async Task T15_unpin_removes_the_sample_and_a_key_in_label_or_models_is_refused()
     {
-        var bRun = (string)(await api.Call("GET", "/api/lab/runs/mine", B)).Body["runs"]!.AsArray().First(r => (string)r!["label"]! == "B day 1")!["id"]!;
-        Assert.Equal(200, (await api.Call("POST", $"/api/lab/runs/{bRun}/pin", Admin)).Status);
-        var refused = await api.Call("DELETE", $"/api/lab/runs/{bRun}", B);
-        Assert.Equal(409, refused.Status);
-        Assert.Contains("unpin", (string)refused.Body["error"]!);
-        var unpinned = await api.Call("DELETE", $"/api/lab/runs/{bRun}/pin", Admin);
+        var aRun = (string)(await api.Call("GET", "/api/lab/samples", B)).Body["samples"]!.AsArray().Single()!["id"]!;
+        var unpinned = await api.Call("DELETE", $"/api/lab/runs/{aRun}/pin", Admin);
         Assert.Equal(200, unpinned.Status);
         Assert.False((bool)unpinned.Body["is_sample"]!);
         Assert.Empty((await api.Call("GET", "/api/lab/samples", B)).Body["samples"]!.AsArray());
-        Assert.Equal(204, (await api.Call("DELETE", $"/api/lab/runs/{bRun}", B)).Status);
+
+        Assert.Equal(400, (await api.Call("POST", "/api/lab/runs", B, new { day = 1, label = "key " + Key, models = new[] { "m" }, result = new { ok = true } })).Status);
+        Assert.Equal(400, (await api.Call("POST", "/api/lab/runs", B, new { day = 1, label = "x", models = new[] { Key }, result = new { ok = true } })).Status);
     }
 
     [Fact]
@@ -454,6 +456,8 @@ public sealed class LabApiTests(ApiFixture api) : IClassFixture<ApiFixture>
         var limited = await api.Call("POST", "/api/assistant/lab/day1/fact-capital", E);
         Assert.Equal(429, limited.Status);
         Assert.Contains("Daily limit of 20", (string)limited.Body["error"]!);
+        Assert.Equal("daily_limit", (string)limited.Body["kind"]!); // the web app stops on this instead of waiting and retrying
+        Assert.False((bool)limited.Body["retryable"]!);
         Assert.Equal(429, (await api.Call("POST", "/api/assistant/lab/day2/v4", E)).Status);
         var analyze = new { job_description = "We need a backend engineer with Python and Docker experience.", candidates = new[] { new { name = "C1", profile = "Built REST APIs in Python for three years." } } };
         Assert.Equal(429, (await api.Call("POST", "/api/assistant/analyze", E, analyze)).Status);
@@ -532,6 +536,26 @@ public sealed class LabOwnKeyTests(LabOwnKeyFixture api) : IClassFixture<LabOwnK
         Assert.Equal(200, day2.Status);
         Assert.Equal(2, api.Sent.Count);
         Assert.Equal(0, (int)day2.Body["passed"]!);
+    }
+
+    [Fact]
+    public async Task K03_own_key_calls_and_server_calls_have_separate_daily_counts()
+    {
+        var c = new TestUser(ApiFixture.Id(3), "c@fiftyfivetech.io");
+        await api.Call("GET", "/api/me", Admin);
+        await api.Call("GET", "/api/me", c);
+        api.Llm.Handler = (_, _) => new LlmResult("{\"answer\": \"Paris\"}", 1, 1, 1, "fake-model");
+        api.Reply = () => LabOwnKeyFixture.Ok("{\"answer\": \"Paris\"}");
+
+        for (var i = 0; i < 5; i++) Assert.Equal(200, (await api.Call("POST", "/api/assistant/lab/day1/fact-capital", c, headers: With())).Status);
+        Assert.Equal(0, (int)(await api.Call("GET", "/api/assistant/usage", c)).Body["used_today"]!); // Gemini calls do not use the shared limit
+        Assert.Equal(5, (int)(await api.Call("GET", "/api/assistant/usage", c, headers: With())).Body["used_today"]!);
+
+        for (var i = 0; i < 20; i++) Assert.Equal(200, (await api.Call("POST", "/api/assistant/lab/day1/fact-capital", c)).Status);
+        var limited = await api.Call("POST", "/api/assistant/lab/day1/fact-capital", c);
+        Assert.Equal(429, limited.Status);
+        Assert.Equal("daily_limit", (string)limited.Body["kind"]!);
+        Assert.Equal(200, (await api.Call("POST", "/api/assistant/lab/day1/fact-capital", c, headers: With())).Status); // own key still works
     }
 
     [Fact]

@@ -10,7 +10,7 @@ namespace FdeTracker.Api.Services.Lab;
 /// own Gemini key when the request carries one), and scores the answers with exactly the evaluation tool's rules.
 /// Every model call is reserved and logged like any assistant call, so it counts toward the same daily limit.
 /// </summary>
-public sealed class LabService(ILlmClient llm, AnalysisPipeline pipeline, LlmCallLedger ledger, LabData data, AppOptions options, ILogger<LabService> logger)
+public sealed class LabService(ILlmClient llm, AnalysisPipeline pipeline, LlmCallLedger ledger, LabData data, ILogger<LabService> logger)
 {
     public const string Day1Label = "lab-day1";
     public const int MaxAnswerChars = 1000;
@@ -78,7 +78,8 @@ public sealed class LabService(ILlmClient llm, AnalysisPipeline pipeline, LlmCal
         try
         {
             result = await pipeline.Run(version, data.Day2.JobDescription, people, ct);
-            var (views, warnings) = AnalysisParser.Parse(result.Text, people, required, options.AssistantSummary == "code" ? GuardrailOptions.AllWithCodeSummary : GuardrailOptions.All);
+            // Scored exactly as the evaluation tool does (default guardrails, the model's own "not stated" list), whatever ASSISTANT_SUMMARY is.
+            var (views, warnings) = AnalysisParser.Parse(result.Text, people, required);
             await ledger.Finish(callId, result.Model, result.InputTokens, result.OutputTokens, result.LatencyMs, "ok");
             var checks = Day2Scoring.Score(group, views);
             return View(version, batch, batches, result, group.Select((c, i) => Candidate(c, checks[i], Day2Scoring.Note(c, checks[i]))).ToList(), warnings);
