@@ -39,6 +39,7 @@ builder.Services.AddSingleton<LlmCallRepository>();
 builder.Services.AddSingleton<SubmissionRepository>();
 builder.Services.AddSingleton<TaskRepository>();
 builder.Services.AddSingleton<LabRunRepository>();
+builder.Services.AddSingleton<ReportRepository>();
 builder.Services.AddSingleton<TaskTools>();
 builder.Services.AddSingleton<PromptLibrary>();
 builder.Services.AddSingleton<AnalysisPipeline>();
@@ -64,6 +65,7 @@ builder.Services.AddSingleton<TaskAssistantService>();
 builder.Services.AddSingleton<SubmissionReviewService>();
 builder.Services.AddSingleton<LabService>();
 builder.Services.AddSingleton<LabRunService>();
+builder.Services.AddSingleton<ReportService>();
 
 // ---- controllers and JSON (snake_case on the wire, unknown fields refused)
 builder.Services.AddControllers()

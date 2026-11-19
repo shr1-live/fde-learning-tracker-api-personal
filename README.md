@@ -200,6 +200,16 @@ A person hands in a task (for example a Week 1 day) with **proof**, and reviewer
 - **Recommended:** reviewers and the admin mark an approved item as recommended, or take the mark off (`POST /api/content/{id}/recommend` with `{recommended: true|false}`; a member gets 403, an item that is not approved gives 409).
 - Every admin change and every recommendation is written to the audit log.
 
+## Reports
+
+Read-only progress reports per person, for a view per day and per week. Nothing is written to the audit log.
+
+- `GET /api/reports/me` (anyone approved): the caller's own report.
+- `GET /api/reports/people[?batch={uuid}]` (reviewer, admin; a member gets 403): one row per approved person (learners, reviewers and the admin), sorted by name: `id, name, batch_name, batch_starts_on, submitted, approved, changes_requested, drafts, avg_rating, last_activity`. `avg_rating` is the average self-rating (1 decimal, `null` if none); `last_activity` is the latest submitted, reviewed or updated time (`null` if none).
+- `GET /api/reports/people/{id}` (reviewer, admin): that person's report; 404 for an unknown or not-yet-approved person.
+- A report is `{person: {id, name, batch: {id, name, starts_on} | null}, days: [...], totals: {submitted, approved, changes_requested, drafts, avg_rating}}`. `days` has one entry per submission in natural task order (`week1-day2` before `week1-day10`): `task_key, status, rating, learned, note, submitted_at, reviewed_at, updated_at, item_count, last_decision, last_comment, last_reviewer` (the newest review, or `null`).
+- Names are the display name, or the part of the email before "@"; a full email is never shown. Drafts are listed so the learner sees saved work; to anyone else a draft shows only that it exists (its note, learned text and rating are `null`), because drafts stay private to their owner.
+
 ## Tests
 
 `dotnet test` runs the integration tests against a throwaway Postgres in Docker (Docker must be running) and the client tests against a fake HTTP layer (no network, no key, no cost). The model is always scripted in tests.
@@ -254,6 +264,8 @@ dotnet test        # needs Docker running: starts a throwaway Postgres
 | GET | `/api/submissions/items/{id}/file` | owner; reviewers and admins once submitted |
 | GET | `/api/review/submissions[?status=]`, `/counts`, `/{id}` | reviewer, admin |
 | POST | `/api/review/submissions/{id}` | reviewer, admin (not for their own work) |
+| GET | `/api/reports/me` | approved (own) |
+| GET | `/api/reports/people[?batch=]`, `/api/reports/people/{id}` | reviewer, admin |
 | GET / POST | `/api/admin/users`, `/api/admin/users/{id}/access`, `/api/admin/users/{id}/role`, `/api/admin/users/{id}/batch` | admin |
 | GET | `/api/admin/batches` | admin, reviewer |
 | POST | `/api/admin/batches` | admin |
