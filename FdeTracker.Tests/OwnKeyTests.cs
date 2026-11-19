@@ -194,6 +194,17 @@ public sealed class OwnKeyApiTests(ApiFixture api) : IClassFixture<ApiFixture>
     }
 
     [Fact]
+    public async Task The_newer_AQ_key_format_is_accepted_too()
+    {
+        await api.Call("GET", "/api/me", Admin);
+        var r = await api.Call("GET", "/api/assistant/usage", Admin, headers: With("AQ.Ab8RN6Lw_example-key.part_0123456789abcdef"));
+        Assert.Equal(200, r.Status);
+        Assert.True((bool)r.Body["using_own_key"]!);
+        Assert.Equal(400, (await api.Call("GET", "/api/assistant/usage", Admin, headers: With("AQ.short"))).Status);
+        Assert.Equal(400, (await api.Call("GET", "/api/assistant/usage", Admin, headers: With("AQ.has space in it 0123456789"))).Status);
+    }
+
+    [Fact]
     public async Task The_model_list_needs_a_key()
     {
         await api.Call("GET", "/api/me", Admin);
