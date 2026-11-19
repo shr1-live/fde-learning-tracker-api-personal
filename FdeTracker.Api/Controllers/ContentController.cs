@@ -8,8 +8,8 @@ namespace FdeTracker.Api.Controllers;
 [RequireApproved]
 public sealed class ContentController(ContentService content) : ApiControllerBase
 {
-    /// <summary>Approved content only; general items for everyone plus the chosen stack's items.</summary>
-    [HttpGet("feed")]
+    /// <summary>Approved content only; general items for everyone plus the chosen stack's items. Moved from /api/feed when Programs V3 took that path.</summary>
+    [HttpGet("content/feed")]
     public async Task<IActionResult> Feed([FromQuery] FeedQuery query) => Ok(await content.Feed(CurrentUser, query));
 
     [HttpGet("content/mine")]

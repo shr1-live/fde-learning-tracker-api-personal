@@ -15,8 +15,16 @@ public sealed class UserView
     /// <summary>The person's batch, or null when they are not in one. Always sent, so the client can rely on the key.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.Never)]
     public BatchView? Batch { get; init; }
+    /// <summary>Programs V3: the programs the person is in, with their role there (the admin: every program, as "admin").</summary>
+    public IReadOnlyList<MyProgramView> Programs { get; init; } = [];
+    /// <summary>The admin, or a coordinator of any program.</summary>
+    public bool CanManage { get; init; }
 
-    public static UserView From(AppUser u, BatchView? batch = null) => new() { Id = u.Id, Email = u.Email, DisplayName = u.DisplayName, StackId = u.StackId, Role = u.Role, Access = u.AccessStatus, Batch = batch };
+    public static UserView From(AppUser u, BatchView? batch = null, IReadOnlyList<MyProgramView>? programs = null) => new()
+    {
+        Id = u.Id, Email = u.Email, DisplayName = u.DisplayName, StackId = u.StackId, Role = u.Role, Access = u.AccessStatus, Batch = batch,
+        Programs = programs ?? [], CanManage = u.IsAdmin || (programs ?? []).Any(p => p.Role == "coordinator"),
+    };
 }
 
 /// <summary>A batch: a group of learners who start on the same day. starts_on is "YYYY-MM-DD".</summary>

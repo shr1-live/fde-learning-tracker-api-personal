@@ -11,8 +11,8 @@ public sealed class UserRepository
 
     public Task LockForSignup(Session s) => s.Exec("select pg_advisory_xact_lock(7001)");
 
-    public Task<int> ApprovedMemberCount(Session s) =>
-        s.Scalar<int>("select count(*)::int from app_users where access_status = 'approved' and role <> 'admin'");
+    public Task<AppUser> Approve(Session s, Guid id) =>
+        s.First<AppUser>("update app_users set access_status = 'approved' where id = @id returning *", new { id })!;
 
     public Task<AppUser> Insert(Session s, Guid id, string email, string role, string status) =>
         s.First<AppUser>("insert into app_users (id, email, role, access_status) values (@id, @email, @role, @status) returning *", new { id, email, role, status })!;

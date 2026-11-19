@@ -7,9 +7,11 @@ using FdeTracker.Api.ViewModels;
 
 namespace FdeTracker.Api.Services;
 
-public sealed class UserService(Db db, UserRepository users, BatchRepository batches, AuditRepository audit, AppOptions options)
+public sealed class UserService(Db db, UserRepository users, BatchRepository batches, AuditRepository audit, LearningProgramRepository programs, AppOptions options)
 {
-    /// <summary>Loads the app user for a verified token, creating (or re-linking) them the first time we see them.</summary>
+    /// <summary>Loads the app user for a verified token, creating (or re-linking) them the first time we see them.
+    /// Invite-only (Programs V3): the admin email is always admin; anyone else is approved only through an invite (or an earlier approval).
+    /// Every open invite for the email becomes a membership on each sign-in.</summary>
     public Task<AppUser> SignIn(Guid id, string email) => db.Tx(async s =>
     {
         await users.LockForSignup(s);
@@ -24,9 +26,8 @@ public sealed class UserService(Db db, UserRepository users, BatchRepository bat
             }
             else
             {
-                var status = isAdmin || await users.ApprovedMemberCount(s) < options.FreeSeats ? "approved" : "pending";
-                user = await users.Insert(s, id, email, isAdmin ? "admin" : "member", status);
-                await audit.Record(s, id, "user.first_seen", id.ToString(), new { status });
+                user = await users.Insert(s, id, email, isAdmin ? "admin" : "member", isAdmin ? "approved" : "pending");
+                await audit.Record(s, id, "user.first_seen", id.ToString(), new { status = user.AccessStatus });
             }
         }
         else
@@ -34,6 +35,11 @@ public sealed class UserService(Db db, UserRepository users, BatchRepository bat
             await users.Touch(s, id);
         }
         if (isAdmin && (user.Role != "admin" || user.AccessStatus != "approved")) user = await users.MakeAdmin(s, user.Id);
+        if (!isAdmin && await programs.AcceptInvites(s, user.Id, email) > 0)
+        {
+            await audit.Record(s, user.Id, "user.invite_accepted", user.Id.ToString(), new { });
+            if (!user.IsApproved) user = await users.Approve(s, user.Id);
+        }
         return user;
     });
 
@@ -57,8 +63,14 @@ public sealed class UserService(Db db, UserRepository users, BatchRepository bat
     /// <summary>The signed-in person as /api/me shows them, with their batch (or null).</summary>
     public async Task<UserView> Me(AppUser user)
     {
-        var batch = user.BatchId is { } bid ? await db.Read(s => batches.ById(s, bid)) : null;
-        return UserView.From(user, batch);
+        return await db.Read(async s =>
+        {
+            var batch = user.BatchId is { } bid ? await batches.ById(s, bid) : null;
+            List<MyProgramView> mine = !user.IsApproved ? []
+                : user.IsAdmin ? (await programs.AllPrograms(s)).Select(p => new MyProgramView { Id = p.Id, Name = p.Name, Role = "admin" }).ToList()
+                : (await programs.MyPrograms(s, user.Id)).Select(p => new MyProgramView { Id = p.Id, Name = p.Name, Role = p.Role ?? "member" }).ToList();
+            return UserView.From(user, batch, mine);
+        });
     }
 
     public async Task<BatchAssignView> SetBatch(Guid actorId, Guid id, Guid? batchId)
