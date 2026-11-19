@@ -36,6 +36,19 @@ Per category, before and final: normal 5 to 6 of 10; incomplete 2 to 5 of 5; amb
 
 What this says, plainly: the new instruction screen caught **0 of 10** fresh attacks. Its 5 of 5 on the first set only showed that it knew the wordings it was written for. The fresh attacks were stopped by the older, plainer rules (a rating needs a real quote; a claim with a fake quote is dropped). So the Day 4 screen added nothing on fresh data; the hard limits did the work.
 
+## Re-run on 2026-11-19: does the result repeat?
+
+The whole 30-case set was run again on 2026-11-19 from a clean copy of the code, on the same local model (qwen2.5:3b). The model answered every case again, so these are new answers, not a re-scoring of the old ones. Full report: [day4-repo-check-comparison.md](../evals/day4-repo-check-comparison.md).
+
+| Configuration | First run (2026-11-17) | Re-run (2026-11-19) | Unsupported claims shown (first / re-run) | Hidden order obeyed (first / re-run) |
+|---|---|---|---|---|
+| Before: prompt v2, no checks | 13 of 30 | 12 of 30 | 37 / 31 | 3 of 5 / 3 of 5 |
+| Checks that existed before Day 4 | 23 of 30 | 22 of 30 | 5 / 5 | 3 of 5 / 3 of 5 |
+| All checks, prompt v2 | 27 of 30 | 26 of 30 | 0 / 0 | 0 of 5 / 0 of 5 |
+| **Final: all checks, prompt v4** | **26 of 30** | **26 of 30** | **0 / 0** | **0 of 5 / 0 of 5** |
+
+The final configuration gave the same result both times: 26 of 30, no unsupported claim reached the user, and no hidden order was obeyed. The unchecked baseline moved by one case, which is expected when a model answers again. The checks are what make the result stable.
+
 ## Monitoring: time and tokens (from the saved results)
 
 | Set | Configuration | Median time per case | Slowest | Input tokens | Output tokens |
