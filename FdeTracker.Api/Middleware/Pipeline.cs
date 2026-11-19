@@ -56,12 +56,16 @@ public sealed class SecurityMiddleware(RequestDelegate next, IHostEnvironment en
 {
     public const long MaxBody = 64 * 1024;
     public const long UploadMaxBody = 2_800_000; // one 2 MB file plus the form wrapper
+    public const long LabRunMaxBody = 80 * 1024; // a saved lab run: a result of up to 64 KB plus its name and model list
 
-    /// <summary>Only the submission file upload may exceed 64 KB; every other route keeps the small cap.</summary>
+    /// <summary>Only the submission file upload and a saved lab run may exceed 64 KB; every other route keeps the small cap.</summary>
     static readonly System.Text.RegularExpressions.Regex UploadRoute = new(@"^/api/submissions/[a-z0-9-]{3,60}/files\z", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(50));
 
     static long LimitFor(HttpRequest request) =>
-        HttpMethods.IsPost(request.Method) && UploadRoute.IsMatch(request.Path.Value ?? "") ? UploadMaxBody : MaxBody;
+        !HttpMethods.IsPost(request.Method) ? MaxBody
+        : UploadRoute.IsMatch(request.Path.Value ?? "") ? UploadMaxBody
+        : request.Path.Equals("/api/lab/runs", StringComparison.OrdinalIgnoreCase) ? LabRunMaxBody
+        : MaxBody;
 
     public Task Invoke(HttpContext ctx)
     {

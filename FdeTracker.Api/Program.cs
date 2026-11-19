@@ -6,6 +6,7 @@ using FdeTracker.Api.Data;
 using FdeTracker.Api.Middleware;
 using FdeTracker.Api.Repositories;
 using FdeTracker.Api.Services;
+using FdeTracker.Api.Services.Lab;
 using FdeTracker.Api.Services.Llm;
 using FdeTracker.Api.Services.Tasks;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -37,10 +38,13 @@ builder.Services.AddSingleton<ProgramRepository>();
 builder.Services.AddSingleton<LlmCallRepository>();
 builder.Services.AddSingleton<SubmissionRepository>();
 builder.Services.AddSingleton<TaskRepository>();
+builder.Services.AddSingleton<LabRunRepository>();
 builder.Services.AddSingleton<ReportRepository>();
 builder.Services.AddSingleton<TaskTools>();
 builder.Services.AddSingleton<PromptLibrary>();
 builder.Services.AddSingleton<AnalysisPipeline>();
+builder.Services.AddSingleton<LlmCallLedger>();
+builder.Services.AddSingleton<LabData>();
 // One HttpClient for every model call. The client the app uses is the server's configured one, except for a request
 // that carries a person's own Gemini key (see OwnKeyMiddleware): that one talks to Gemini with that key.
 builder.Services.AddSingleton(new LlmHttp(new HttpClient(new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(5) }) { Timeout = Timeout.InfiniteTimeSpan }));
@@ -59,6 +63,8 @@ builder.Services.AddSingleton<AssistantService>();
 builder.Services.AddSingleton<SubmissionService>();
 builder.Services.AddSingleton<TaskAssistantService>();
 builder.Services.AddSingleton<SubmissionReviewService>();
+builder.Services.AddSingleton<LabService>();
+builder.Services.AddSingleton<LabRunService>();
 builder.Services.AddSingleton<ReportService>();
 
 // ---- controllers and JSON (snake_case on the wire, unknown fields refused)

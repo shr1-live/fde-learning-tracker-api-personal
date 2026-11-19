@@ -220,7 +220,8 @@ public sealed class OwnKeyApiTests(ApiFixture api) : IClassFixture<ApiFixture>
         for (var i = 0; i < 22; i++) Assert.Equal(200, (await api.Call("POST", "/api/assistant/analyze", Learner, Req(), headers: With())).Status);
         var usage = (await api.Call("GET", "/api/assistant/usage", Learner, headers: With())).Body;
         Assert.Equal(LlmKeyScope.OwnKeyDailyCap, (int)usage["daily_cap"]!);
-        // the shared limit (20) was already passed by those 22 calls, so without the key the same person is stopped
-        Assert.Equal(429, (await api.Call("POST", "/api/assistant/analyze", Learner, Req())).Status);
+        // own-key calls are counted apart, so the shared limit (20) is untouched by those 22 calls: the server model still answers
+        Assert.Equal(0, (int)(await api.Call("GET", "/api/assistant/usage", Learner)).Body["used_today"]!);
+        Assert.Equal(200, (await api.Call("POST", "/api/assistant/analyze", Learner, Req())).Status);
     }
 }
