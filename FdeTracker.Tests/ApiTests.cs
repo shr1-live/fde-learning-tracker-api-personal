@@ -98,8 +98,17 @@ public sealed class ApiTests(ApiFixture api) : IClassFixture<ApiFixture>
     [Fact]
     public async Task T06_reviewers_cannot_approve_their_own_work_and_changes_requested_can_be_resubmitted()
     {
+        // A reviewer's own submission needs no review now (it is published at once), so there is nothing for them to self-approve.
         var mine = await api.Call("POST", "/api/content", C, new { topic = "mcp", stack_id = (string?)null, kind = "note", title = "My MCP note", body_md = "text", submit = true });
-        Assert.Equal(403, (await api.Call("POST", $"/api/review/{(string)mine.Body["id"]!}", C, new { decision = "approve" })).Status);
+        Assert.Equal("approved", (string)mine.Body["status"]!);
+        Assert.Equal(409, (await api.Call("POST", $"/api/review/{(string)mine.Body["id"]!}", C, new { decision = "approve" })).Status);
+        // Something sent for review while its author was a member stays theirs: promoted later, they still cannot approve it.
+        var waiting = await api.Call("POST", "/api/content", D, new { topic = "mcp", stack_id = (string?)null, kind = "note", title = "Sent as a member", body_md = "text", submit = true });
+        Assert.Equal("in_review", (string)waiting.Body["status"]!);
+        Assert.Equal(200, (await api.Call("POST", $"/api/admin/users/{D.Id}/role", Admin, new { role = "reviewer" })).Status);
+        Assert.Equal(403, (await api.Call("POST", $"/api/review/{(string)waiting.Body["id"]!}", D, new { decision = "approve" })).Status);
+        Assert.Equal(200, (await api.Call("POST", $"/api/admin/users/{D.Id}/role", Admin, new { role = "member" })).Status);
+        Assert.Equal(200, (await api.Call("POST", $"/api/review/{(string)waiting.Body["id"]!}", C, new { decision = "reject", comment = "Test item" })).Status);
         var other = await api.Call("POST", "/api/content", B, new { topic = "mcp", stack_id = (string?)null, kind = "note", title = "Needs work", body_md = "draft", submit = true });
         string oid = (string)other.Body["id"]!;
         Assert.Equal(200, (await api.Call("POST", $"/api/review/{oid}", C, new { decision = "request_changes", comment = "Add an example" })).Status);
@@ -195,7 +204,7 @@ public sealed class ApiTests(ApiFixture api) : IClassFixture<ApiFixture>
             if (cursor is null) break;
         }
         Assert.Equal(seen.Count, seen.Distinct().Count());
-        Assert.Equal(4, seen.Count);
+        Assert.Equal(5, seen.Count); // the four above plus the reviewer's own note from T06, published without review
     }
 
     [Fact]
