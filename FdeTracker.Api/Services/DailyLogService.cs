@@ -10,7 +10,7 @@ public sealed class LogSummaryRow { public Guid UserId { get; set; } public stri
 
 /// <summary>The daily log: tasks as rows, days (Monday to Friday) as columns, hours and a note in each cell. A person edits only their own week;
 /// reviewers and the admin read everyone's and see who has not logged or submitted.</summary>
-public sealed class DailyLogService(Db db, AuditRepository audit)
+public sealed class DailyLogService(Db db, AuditRepository audit, NotificationService notifications)
 {
     public const int MaxCells = 100;
     sealed class CellRow { public string Task { get; set; } = ""; public DateTime LogDate { get; set; } public decimal Hours { get; set; } public string? Note { get; set; } }
@@ -61,10 +61,20 @@ public sealed class DailyLogService(Db db, AuditRepository audit)
             await s.Exec("insert into daily_log (user_id, log_date, task, hours, note) values (@userId, @d, @task, @hours, @note)",
                 new { userId, d = DateOnly.ParseExact(c.Date, "yyyy-MM-dd").ToDateTime(TimeOnly.MinValue), task = c.Task, hours = c.Hours, note = c.Note });
         await s.Exec("delete from daily_log_weeks where user_id = @userId and week_start = @a", new { userId, a });
+        // logging hours for a day settles that day's reminder
+        await s.Exec("update notifications set read_at = now() where user_id = @userId and kind = 'daily_log_missed' and read_at is null and on_date = any(@dates)",
+            new { userId, dates = clean.Where(c => c.Hours > 0).Select(c => DateOnly.ParseExact(c.Date, "yyyy-MM-dd").ToDateTime(TimeOnly.MinValue)).Distinct().ToArray() });
         return await Load(s, userId, monday);
     });
 
-    public Task<LogWeek> Submit(Guid userId, DateOnly monday) => db.Tx(async s =>
+    public async Task<LogWeek> Submit(Guid userId, DateOnly monday)
+    {
+        var week = await SubmitCore(userId, monday);
+        try { await notifications.WeekSubmitted(userId, monday); } catch { /* the week is submitted; an alert that fails must not undo it */ }
+        return week;
+    }
+
+    Task<LogWeek> SubmitCore(Guid userId, DateOnly monday) => db.Tx(async s =>
     {
         var any = await s.Scalar<long>("select count(*) from daily_log where user_id = @userId and log_date between @a and @b", new { userId, a = monday.ToDateTime(TimeOnly.MinValue), b = monday.AddDays(6).ToDateTime(TimeOnly.MinValue) });
         if (any == 0) throw new ApiException(409, "Log some hours before you submit the week.");
