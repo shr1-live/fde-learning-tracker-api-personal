@@ -85,4 +85,20 @@ public sealed class NotificationTests(ApiFixture api) : IClassFixture<ApiFixture
         Assert.Equal(1, (int)(await api.Call("GET", "/api/notifications", R)).Body["unread"]!);
         Assert.Equal(1, await api.Count($"select count(*) from notifications where user_id = '{R.Id}' and kind = 'week_submitted'"));
     }
+
+    [Fact]
+    public async Task N04_the_admin_gets_one_weekly_digest_on_monday_and_nobody_else_does()
+    {
+        var ist = FdeTracker.Api.Services.NotificationService.ResolveZone("Asia/Kolkata");
+        var mon = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(21), DateTimeKind.Unspecified);
+        while (mon.DayOfWeek != DayOfWeek.Monday) mon = mon.AddDays(1);
+        var now = TimeZoneInfo.ConvertTimeToUtc(mon.AddHours(10).AddMinutes(30), ist);
+        var service = api.Services.GetRequiredService<FdeTracker.Api.Services.NotificationService>();
+        Assert.Equal(1, await service.WeeklyDigest(now));
+        Assert.Equal(0, await service.WeeklyDigest(now));                                              // repeating sends nothing twice
+        Assert.Equal(0, await service.WeeklyDigest(now.AddDays(1)));                                   // Tuesday: no digest
+        var n = (await api.Call("GET", "/api/notifications", Admin)).Body["items"]!.AsArray().Single(i => (string)i!["kind"]! == "weekly_digest");
+        Assert.Contains("learners logged", (string)n!["body"]!);
+        Assert.Empty((await api.Call("GET", "/api/notifications", R)).Body["items"]!.AsArray().Where(i => (string)i!["kind"]! == "weekly_digest"));
+    }
 }

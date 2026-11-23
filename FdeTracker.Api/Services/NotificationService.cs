@@ -44,6 +44,7 @@ public sealed class NotificationService(Db db, AppOptions options, IHttpClientFa
     public async Task<int> RunReminders(Guid? onlyUserId = null, DateTime? nowUtc = null)
     {
         if (nowUtc is null && !options.RemindersEnabled) return 0; // a fixed clock (tests) runs even when the timer is off
+        if (onlyUserId is null) { try { await WeeklyDigest(nowUtc ?? DateTime.UtcNow); } catch (Exception e) { log.LogWarning(e, "Weekly digest failed"); } }
         if (DayToRemind(nowUtc ?? DateTime.UtcNow, ResolveZone(options.ReminderTimeZone), options.ReminderHour) is not { } day) return 0;
         var iso = day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         var created = await db.Tx(s => s.Query<Created>(
@@ -67,6 +68,41 @@ public sealed class NotificationService(Db db, AppOptions options, IHttpClientFa
             await Email(r.Id, r.Email, $"Reminder: your daily log for {Pretty(r.OnDate)}", $"Hi {r.Name},\n\nYou have not logged any hours for {Pretty(r.OnDate)}.\nFill in your daily log: {Url("/daily-log")}\n\nFDE Training");
         if (created.Count > 0) log.LogInformation("Daily log reminders for {Day}: {Count}", iso, created.Count);
         return created.Count;
+    }
+
+    /// <summary>
+    /// On Monday from the reminder hour: one summary of last week (Monday to Friday) for every admin, in the app and by email.
+    /// Counts what was handed in and approved, how many learners logged hours and how many logged nothing. One per admin per Monday.
+    /// </summary>
+    public async Task<int> WeeklyDigest(DateTime nowUtc)
+    {
+        var local = TimeZoneInfo.ConvertTimeFromUtc(nowUtc, ResolveZone(options.ReminderTimeZone));
+        if (local.DayOfWeek != DayOfWeek.Monday || local.Hour < options.ReminderHour) return 0;
+        var thisMonday = DateOnly.FromDateTime(local);
+        var from = thisMonday.AddDays(-7).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var to = thisMonday.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var rows = await db.Tx(s => s.Query<Created>(
+            $"""
+            with stats as (
+              select (select count(*) from submissions x where x.submitted_at >= @from::date and x.submitted_at < @to::date) as handed,
+                     (select count(*) from submissions x where x.status = 'approved' and x.reviewed_at >= @from::date and x.reviewed_at < @to::date) as approved,
+                     (select count(distinct l.user_id) from daily_log l join app_users u on u.id = l.user_id where l.log_date >= @from::date and l.log_date < @to::date and l.hours > 0 and u.role = 'member') as logged,
+                     (select count(*) from app_users u where u.access_status = 'approved' and u.role = 'member' and u.batch_id is not null
+                        and not exists (select 1 from daily_log l where l.user_id = u.id and l.log_date >= @from::date and l.log_date < @to::date and l.hours > 0)) as silent
+            ), added as (
+              insert into notifications (user_id, kind, on_date, title, body, link)
+              select a.id, 'weekly_digest', @to::date, 'Last week at a glance',
+                     st.handed || ' days handed in, ' || st.approved || ' approved. ' || st.logged || ' learners logged hours, ' || st.silent || ' logged nothing.',
+                     '/progress?tab=cohort'
+              from app_users a cross join stats st where a.access_status = 'approved' and a.role = 'admin'
+              on conflict (user_id, kind, on_date, ref) do nothing
+              returning id, user_id, body
+            )
+            select a.id, u.email, a.body as name, @to as on_date from added a join app_users u on u.id = a.user_id
+            """, new { from, to }));
+        foreach (var r in rows) await Email(r.Id, r.Email, "Last week at a glance", $"{r.Name}\n\nOpen the cohort dashboard: {Url("/progress?tab=cohort")}\n\nFDE Training");
+        if (rows.Count > 0 && options.AlertWebhookUrl is { Length: > 0 } hook) await Webhook(hook, "Last week at a glance: " + rows[0].Name);
+        return rows.Count;
     }
 
     /// <summary>Tells every reviewer and admin (except the person) that a week was submitted; a resubmission shows as new again.</summary>
