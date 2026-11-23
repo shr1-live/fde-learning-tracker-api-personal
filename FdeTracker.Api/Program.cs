@@ -61,6 +61,7 @@ builder.Services.AddSingleton<ReviewService>();
 builder.Services.AddSingleton<ProgramService>();
 builder.Services.AddSingleton<AssistantService>();
 builder.Services.AddSingleton<SubmissionService>();
+builder.Services.AddSingleton<DailyLogService>();
 builder.Services.AddSingleton<TaskAssistantService>();
 builder.Services.AddSingleton<SubmissionReviewService>();
 builder.Services.AddSingleton<LabService>();
