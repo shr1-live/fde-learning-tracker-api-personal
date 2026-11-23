@@ -64,6 +64,7 @@ builder.Services.AddSingleton<SubmissionService>();
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<NotificationService>();
 builder.Services.AddSingleton<DailyLogService>();
+builder.Services.AddSingleton<CommunityService>();
 if (options.RemindersEnabled) builder.Services.AddHostedService<ReminderJob>();
 builder.Services.AddSingleton<TaskAssistantService>();
 builder.Services.AddSingleton<SubmissionReviewService>();

@@ -15,6 +15,8 @@ public sealed class CreateContentRequest : IValidatableObject
     [StringLength(20000)] public string? BodyMd { get; set; }
     [StringLength(500), HttpsUrl] public string? Url { get; set; }
     public bool Submit { get; set; }
+    /// <summary>Show this item only to the author's own batch (and reviewers). Needs the author to be in a batch.</summary>
+    public bool BatchOnly { get; set; }
 
     public IEnumerable<ValidationResult> Validate(ValidationContext context)
     {
