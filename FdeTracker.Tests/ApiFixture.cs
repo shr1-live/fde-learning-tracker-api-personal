@@ -58,6 +58,7 @@ public class ApiFixture : IAsyncLifetime
     HttpClient _client = null!;
 
     public string ConnectionString => _pg.GetConnectionString();
+    public IServiceProvider Services => _factory.Services;
 
     public static Guid Id(int n) => Guid.Parse($"00000000-0000-4000-8000-{n:D12}");
 

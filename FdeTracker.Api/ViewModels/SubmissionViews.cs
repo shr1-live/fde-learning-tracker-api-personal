@@ -26,6 +26,9 @@ public sealed class SubmissionReviewView
     public string? Comment { get; set; }
     public string Reviewer { get; set; } = "";
     public DateTime CreatedAt { get; set; }
+    /// <summary>The reviewer's checklist result, when they used it: points met out of the total.</summary>
+    public int? Met { get; set; }
+    public int? Total { get; set; }
 }
 
 /// <summary>One submission in full: what the person handed in, and everything reviewers said about it.</summary>

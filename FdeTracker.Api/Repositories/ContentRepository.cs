@@ -6,7 +6,7 @@ namespace FdeTracker.Api.Repositories;
 
 public sealed class ContentRepository
 {
-    const string PublicCols = "c.id, c.title, c.summary, c.kind, c.url, c.stack_id, c.approved_at, c.recommended, t.slug as topic, t.title as topic_title, coalesce(u.display_name, split_part(u.email, '@', 1)) as author";
+    const string PublicCols = "c.id, c.title, c.summary, c.kind, c.url, c.stack_id, c.approved_at, c.recommended, t.slug as topic, t.title as topic_title, coalesce(u.display_name, split_part(u.email, '@', 1)) as author, (c.batch_id is not null) as batch_only";
 
     // Fixed ORDER BY clauses picked by a validated key: no caller text ever reaches the SQL.
     static readonly Dictionary<string, string> OrderBy = new()
@@ -19,10 +19,10 @@ public sealed class ContentRepository
 
     /// <summary>Approved items: general ones for everyone plus the chosen stack's. Returns up to limit + 1 rows so the caller can tell if there is more.
     /// The cursor applies only to the "newest" order.</summary>
-    public Task<List<ContentRecord>> Feed(Session s, string stack, string? topic, string sort, (DateTime Ts, Guid Id)? cursor, int limit)
+    public Task<List<ContentRecord>> Feed(Session s, string stack, string? topic, string sort, (DateTime Ts, Guid Id)? cursor, int limit, Guid? batch = null, bool seeAll = false)
     {
         var order = OrderBy[sort];
-        var where = "c.status = 'approved' and (c.stack_id is null or c.stack_id = @stack)";
+        var where = "c.status = 'approved' and (c.stack_id is null or c.stack_id = @stack) and (c.batch_id is null or @seeAll or c.batch_id = @batch::uuid)";
         if (topic is not null) where += " and t.slug = @topic";
         if (cursor is not null && sort == "newest") where += " and (c.approved_at, c.id) < (@ts::timestamptz, @cid::uuid)";
         return s.Query<ContentRecord>(
@@ -30,7 +30,7 @@ public sealed class ContentRepository
              select {PublicCols} from content_items c join topics t on t.id = c.topic_id join app_users u on u.id = c.author_id
              where {where} order by {order} limit @take
              """,
-            new { stack = stack == "general" ? null : stack, topic, ts = cursor?.Ts, cid = cursor?.Id, take = limit + 1 });
+            new { stack = stack == "general" ? null : stack, topic, ts = cursor?.Ts, cid = cursor?.Id, take = limit + 1, batch, seeAll });
     }
 
     public Task<string?> LockStatus(Session s, Guid id) =>
@@ -49,7 +49,7 @@ public sealed class ContentRepository
 
     public Task<ContentRecord?> Find(Session s, Guid id) =>
         s.First<ContentRecord>(
-            $"select {PublicCols}, c.body_md, c.status, c.author_id from content_items c join topics t on t.id = c.topic_id join app_users u on u.id = c.author_id where c.id = @id", new { id });
+            $"select {PublicCols}, c.body_md, c.status, c.author_id, c.batch_id from content_items c join topics t on t.id = c.topic_id join app_users u on u.id = c.author_id where c.id = @id", new { id });
 
     public Task<int> ActiveCount(Session s, Guid userId) =>
         s.Scalar<int>("select count(*)::int from content_items where author_id = @userId and status in ('draft','in_review','changes_requested')", new { userId });
@@ -57,15 +57,15 @@ public sealed class ContentRepository
     public Task<int?> TopicId(Session s, string slug) => s.First<int?>("select id from topics where slug = @slug", new { slug });
 
     /// <summary>status is draft, in_review, or approved (a reviewer's or admin's own submission needs no review).</summary>
-    public Task<ContentSavedView> Insert(Session s, int topicId, string? stackId, string kind, string title, string? summary, string? bodyMd, string? url, Guid authorId, string status) =>
+    public Task<ContentSavedView> Insert(Session s, int topicId, string? stackId, string kind, string title, string? summary, string? bodyMd, string? url, Guid authorId, string status, Guid? batchId = null) =>
         s.First<ContentSavedView>(
             """
-            insert into content_items (topic_id, stack_id, kind, title, summary, body_md, url, author_id, status, submitted_at, approved_at)
-            values (@topicId, @stackId, @kind, @title, @summary, @bodyMd, @url, @authorId, @status,
+            insert into content_items (topic_id, stack_id, kind, title, summary, body_md, url, author_id, status, batch_id, submitted_at, approved_at)
+            values (@topicId, @stackId, @kind, @title, @summary, @bodyMd, @url, @authorId, @status, @batchId,
                     case when @status in ('in_review', 'approved') then now() end, case when @status = 'approved' then now() end)
             returning id, status
             """,
-            new { topicId, stackId, kind, title, summary, bodyMd, url, authorId, status })!;
+            new { topicId, stackId, kind, title, summary, bodyMd, url, authorId, status, batchId })!;
 
     public Task<ContentRow?> LockOwned(Session s, Guid id, Guid authorId) =>
         s.First<ContentRow>("select * from content_items where id = @id and author_id = @authorId for update", new { id, authorId });

@@ -159,8 +159,9 @@ public sealed class SubmissionReviewService(Db db, SubmissionRepository repo, Au
         return await SubmissionAssembler.Build(s, repo, row);
     });
 
-    public Task<SubmissionView> Decide(AppUser reviewer, Guid id, string decision, string? comment) => db.Tx(async s =>
+    public Task<SubmissionView> Decide(AppUser reviewer, Guid id, string decision, string? comment, int? met = null, int? total = null) => db.Tx(async s =>
     {
+        if ((met is null) != (total is null) || (met is not null && met > total)) throw ApiException.BadRequest("Send the points met and the total together, with met no more than the total");
         if (decision == "request_changes" && comment is null) throw ApiException.BadRequest("Say what needs to change when you ask for changes");
         var row = await repo.LockById(s, id);
         if (row is null || row.Status == "draft") throw ApiException.NotFound();
@@ -168,7 +169,7 @@ public sealed class SubmissionReviewService(Db db, SubmissionRepository repo, Au
         var own = row.UserId == reviewer.Id;
         if (own && !reviewer.IsAdmin) throw new ApiException(403, "You cannot review your own submission");
         await repo.SetStatus(s, id, decision == "approve" ? "approved" : "changes_requested");
-        await repo.AddReview(s, id, reviewer.Id, decision, comment);
+        await repo.AddReview(s, id, reviewer.Id, decision, comment, met, total);
         await audit.Record(s, reviewer.Id, "submission.review." + decision, id.ToString(), own ? new { self_review = true } : null);
         return await SubmissionAssembler.Build(s, repo, (await repo.ById(s, id))!);
     });

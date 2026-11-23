@@ -11,6 +11,16 @@ public sealed class AppOptions
     public int FreeSeats { get; init; } = 3;
     public string[] CorsOrigins { get; init; } = [];
 
+    // Reminders and alerts. In-app notifications always work; email (Resend) and the Slack/Teams webhook are optional.
+    public bool RemindersEnabled { get; init; } = true;
+    public int ReminderHour { get; init; } = 10;
+    public string ReminderTimeZone { get; init; } = "Asia/Kolkata";
+    public string? ResendApiKey { get; init; }
+    public string? EmailFrom { get; init; }
+    public string AppUrl { get; init; } = "https://fde-learniing-tracker.vercel.app";
+    /// <summary>Optional incoming-webhook address (Slack or Teams, https only) told when someone submits their week.</summary>
+    public string? AlertWebhookUrl { get; init; }
+
     // The assistant is optional: without all three LLM_* values it answers 503 and nothing else is affected.
     public string? LlmBaseUrl { get; init; }
     public string? LlmApiKey { get; init; }
@@ -67,6 +77,13 @@ public sealed class AppOptions
             AllowedDomain = (c["ALLOWED_DOMAIN"] ?? "fiftyfivetech.io").ToLowerInvariant(),
             FreeSeats = int.TryParse(c["FREE_SEATS"], out var n) ? n : 3,
             CorsOrigins = (c["CORS_ORIGINS"] ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+            RemindersEnabled = !string.Equals(c["REMINDERS_ENABLED"], "false", StringComparison.OrdinalIgnoreCase),
+            ReminderHour = int.TryParse(c["REMINDER_HOUR"], out var rh) && rh is >= 0 and <= 23 ? rh : 10,
+            ReminderTimeZone = Opt("REMINDER_TIME_ZONE") ?? "Asia/Kolkata",
+            ResendApiKey = Opt("RESEND_API_KEY"),
+            EmailFrom = Opt("EMAIL_FROM"),
+            AppUrl = Opt("APP_URL") ?? "https://fde-learniing-tracker.vercel.app",
+            AlertWebhookUrl = Opt("ALERT_WEBHOOK_URL") is { } w && Uri.TryCreate(w, UriKind.Absolute, out var wu) && wu.Scheme == Uri.UriSchemeHttps ? w : null,
             LlmBaseUrl = Opt("LLM_BASE_URL"),
             LlmApiKey = Opt("LLM_API_KEY"),
             LlmModel = Opt("LLM_MODEL"),

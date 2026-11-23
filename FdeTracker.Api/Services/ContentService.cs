@@ -18,7 +18,7 @@ public sealed class ContentService(Db db, ContentRepository content, AuditReposi
         var sort = q.Sort ?? "newest";
         var paged = sort == "newest"; // only the newest-first order pages with a cursor; the others are one page
         var cursor = paged && q.Before is not null ? DecodeCursor(q.Before) : ((DateTime, Guid)?)null;
-        var rows = await db.Read(s => content.Feed(s, stack, q.Topic, sort, cursor, q.Limit));
+        var rows = await db.Read(s => content.Feed(s, stack, q.Topic, sort, cursor, q.Limit, user.BatchId, user.Role != "member"));
         var more = rows.Count > q.Limit;
         var items = (more ? rows.Take(q.Limit) : rows).ToList();
         return new FeedPageView
@@ -53,6 +53,7 @@ public sealed class ContentService(Db db, ContentRepository content, AuditReposi
         var row = await db.Read(s => content.Find(s, id));
         var privileged = row is not null && (row.AuthorId == user.Id || user.Role != "member");
         if (row is null || (row.Status != "approved" && !privileged)) throw ApiException.NotFound();
+        if (row.BatchId is not null && user.Role == "member" && row.AuthorId != user.Id && row.BatchId != user.BatchId) throw ApiException.NotFound(); // another batch's item
         return ContentDetailView.From(row);
     }
 
@@ -62,7 +63,8 @@ public sealed class ContentService(Db db, ContentRepository content, AuditReposi
         if (await content.ActiveCount(s, userId) >= MaxActiveDrafts)
             throw new ApiException(429, $"You have {MaxActiveDrafts} items in progress. Finish or delete some first.");
         var topicId = await content.TopicId(s, b.Topic) ?? throw ApiException.BadRequest("Unknown topic");
-        var row = await content.Insert(s, topicId, b.StackId, b.Kind, b.Title, b.Summary, b.BodyMd, b.Url, userId, b.Submit ? SubmittedStatus(user) : "draft");
+        if (b.BatchOnly && user.BatchId is null) throw ApiException.BadRequest("Join a batch before you share with your batch only");
+        var row = await content.Insert(s, topicId, b.StackId, b.Kind, b.Title, b.Summary, b.BodyMd, b.Url, userId, b.Submit ? SubmittedStatus(user) : "draft", b.BatchOnly ? user.BatchId : null);
         await audit.Record(s, userId, "content.create", row.Id.ToString(), new { status = row.Status });
         if (row.Status == "approved") await audit.Record(s, userId, "content.auto_approved", row.Id.ToString(), new { role = user.Role });
         return row;

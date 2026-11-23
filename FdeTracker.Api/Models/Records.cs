@@ -16,6 +16,8 @@ public sealed class ContentRecord
     public string? BodyMd { get; set; }
     public string Status { get; set; } = "";
     public Guid AuthorId { get; set; }
+    public Guid? BatchId { get; set; }
+    public bool BatchOnly { get; set; }
     public bool Recommended { get; set; }
 }
 

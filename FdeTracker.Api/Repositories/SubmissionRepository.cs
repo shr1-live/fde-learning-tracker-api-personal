@@ -80,13 +80,13 @@ public sealed class SubmissionRepository
     public Task<List<SubmissionReviewView>> Reviews(Session s, Guid submissionId) =>
         s.Query<SubmissionReviewView>(
             $"""
-            select r.decision, r.comment, {Author} as reviewer, r.created_at
+            select r.decision, r.comment, {Author} as reviewer, r.created_at, (r.scores->>'met')::int as met, (r.scores->>'total')::int as total
             from submission_reviews r join app_users u on u.id = r.reviewer_id
             where r.submission_id = @submissionId order by r.created_at desc
             """, new { submissionId });
 
-    public Task AddReview(Session s, Guid submissionId, Guid reviewerId, string decision, string? comment) =>
-        s.Exec("insert into submission_reviews (submission_id, reviewer_id, decision, comment) values (@submissionId, @reviewerId, @decision, @comment)", new { submissionId, reviewerId, decision, comment });
+    public Task AddReview(Session s, Guid submissionId, Guid reviewerId, string decision, string? comment, int? met = null, int? total = null) =>
+        s.Exec("insert into submission_reviews (submission_id, reviewer_id, decision, comment, scores) values (@submissionId, @reviewerId, @decision, @comment, case when @met::int is null then null else jsonb_build_object('met', @met::int, 'total', @total::int) end)", new { submissionId, reviewerId, decision, comment, met, total });
 
     public Task<string> AuthorName(Session s, Guid userId) =>
         s.Scalar<string>($"select {Author} from app_users u where u.id = @userId", new { userId });
