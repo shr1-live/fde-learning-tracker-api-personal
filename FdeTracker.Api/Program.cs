@@ -66,6 +66,7 @@ builder.Services.AddSingleton<SubmissionReviewService>();
 builder.Services.AddSingleton<LabService>();
 builder.Services.AddSingleton<LabRunService>();
 builder.Services.AddSingleton<ReportService>();
+builder.Services.AddSingleton<ReadinessService>();
 
 // ---- controllers and JSON (snake_case on the wire, unknown fields refused)
 builder.Services.AddControllers()
