@@ -1,0 +1,2176 @@
+{
+ "vector_db": "Postgres + pgvector",
+ "pgvector_version": "0.6.2",
+ "model": "BAAI/bge-small-en-v1.5",
+ "ingest": {
+  "documents": 12,
+  "chunks": 17,
+  "ingest_seconds": 2.21
+ },
+ "questions": {
+  "plain": 10,
+  "paraphrase": 6,
+  "filtered": 6,
+  "out_of_scope": 3
+ },
+ "matrix": [
+  {
+   "mode": "semantic",
+   "k": 1,
+   "filter": false,
+   "questions": 22,
+   "hit": 81.8,
+   "mrr": 0.818,
+   "precision": 81.8,
+   "phrase": 81.8,
+   "p50_ms": 39.46,
+   "p95_ms": 72.39,
+   "rows": [
+    {
+     "q": "How soon are expense claims reimbursed?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "expense-all-2025"
+    },
+    {
+     "q": "After how many minutes does a company laptop lock itself?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "How long must a password be?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "What is the yearly learning budget?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "How often do mentoring pairs meet?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "How many written quotes does a vendor contract above 5,000 euros need?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "procurement-all-2025"
+    },
+    {
+     "q": "How often are performance reviews held?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "performance-all-2025"
+    },
+    {
+     "q": "How long does a new starter have a buddy?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "Within how long must a phishing email be reported?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "How is the severity of a security incident rated?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "incident-all-2025"
+    },
+    {
+     "q": "Can I work from home?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "remote-de-2025"
+    },
+    {
+     "q": "Who signs off on a purchase above 500 euros?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "expense-all-2025"
+    },
+    {
+     "q": "What do I need to do before buying something expensive?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "expense-all-2025"
+    },
+    {
+     "q": "When can I appeal my performance score?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "performance-all-2025"
+    },
+    {
+     "q": "What does the company pay for my courses and conferences?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "Which days are people expected to be in the office?",
+     "kind": "paraphrase",
+     "hit": false,
+     "rr": 0.0,
+     "precision": 0.0,
+     "phrase": false,
+     "top": "holidays-uk-2026"
+    },
+    {
+     "q": "How many days of paid annual leave do I get?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "leave-uk-2025"
+    },
+    {
+     "q": "How many days of paid annual leave do I get?",
+     "kind": "filtered",
+     "hit": false,
+     "rr": 0.0,
+     "precision": 0.0,
+     "phrase": false,
+     "top": "leave-uk-2025"
+    },
+    {
+     "q": "What is the hotel cap per night?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "travel-us-2025"
+    },
+    {
+     "q": "How many days a week can I work remotely?",
+     "kind": "filtered",
+     "hit": false,
+     "rr": 0.0,
+     "precision": 0.0,
+     "phrase": false,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "How many unused leave days can be carried over?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "leave-uk-2025"
+    },
+    {
+     "q": "When does a medical certificate become necessary?",
+     "kind": "filtered",
+     "hit": false,
+     "rr": 0.0,
+     "precision": 0.0,
+     "phrase": false,
+     "top": "leave-uk-2025"
+    }
+   ]
+  },
+  {
+   "mode": "semantic",
+   "k": 3,
+   "filter": false,
+   "questions": 22,
+   "hit": 95.5,
+   "mrr": 0.871,
+   "precision": 45.5,
+   "phrase": 95.5,
+   "p50_ms": 36.94,
+   "p95_ms": 42.82,
+   "rows": [
+    {
+     "q": "How soon are expense claims reimbursed?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "expense-all-2025"
+    },
+    {
+     "q": "After how many minutes does a company laptop lock itself?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.6666666666666666,
+     "phrase": true,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "How long must a password be?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.6666666666666666,
+     "phrase": true,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "What is the yearly learning budget?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "How often do mentoring pairs meet?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.6666666666666666,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "How many written quotes does a vendor contract above 5,000 euros need?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "procurement-all-2025"
+    },
+    {
+     "q": "How often are performance reviews held?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "performance-all-2025"
+    },
+    {
+     "q": "How long does a new starter have a buddy?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.6666666666666666,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "Within how long must a phishing email be reported?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "How is the severity of a security incident rated?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "incident-all-2025"
+    },
+    {
+     "q": "Can I work from home?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.6666666666666666,
+     "phrase": true,
+     "top": "remote-de-2025"
+    },
+    {
+     "q": "Who signs off on a purchase above 500 euros?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.6666666666666666,
+     "phrase": true,
+     "top": "expense-all-2025"
+    },
+    {
+     "q": "What do I need to do before buying something expensive?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.6666666666666666,
+     "phrase": true,
+     "top": "expense-all-2025"
+    },
+    {
+     "q": "When can I appeal my performance score?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "performance-all-2025"
+    },
+    {
+     "q": "What does the company pay for my courses and conferences?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "Which days are people expected to be in the office?",
+     "kind": "paraphrase",
+     "hit": false,
+     "rr": 0.0,
+     "precision": 0.0,
+     "phrase": false,
+     "top": "holidays-uk-2026"
+    },
+    {
+     "q": "How many days of paid annual leave do I get?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "leave-uk-2025"
+    },
+    {
+     "q": "How many days of paid annual leave do I get?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 0.3333333333333333,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "leave-uk-2025"
+    },
+    {
+     "q": "What is the hotel cap per night?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "travel-us-2025"
+    },
+    {
+     "q": "How many days a week can I work remotely?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 0.5,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "How many unused leave days can be carried over?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "leave-uk-2025"
+    },
+    {
+     "q": "When does a medical certificate become necessary?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 0.3333333333333333,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "leave-uk-2025"
+    }
+   ]
+  },
+  {
+   "mode": "semantic",
+   "k": 5,
+   "filter": false,
+   "questions": 22,
+   "hit": 100.0,
+   "mrr": 0.883,
+   "precision": 30.9,
+   "phrase": 100.0,
+   "p50_ms": 36.28,
+   "p95_ms": 38.4,
+   "rows": [
+    {
+     "q": "How soon are expense claims reimbursed?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "expense-all-2025"
+    },
+    {
+     "q": "After how many minutes does a company laptop lock itself?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.4,
+     "phrase": true,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "How long must a password be?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.4,
+     "phrase": true,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "What is the yearly learning budget?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "How often do mentoring pairs meet?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.4,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "How many written quotes does a vendor contract above 5,000 euros need?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "procurement-all-2025"
+    },
+    {
+     "q": "How often are performance reviews held?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "performance-all-2025"
+    },
+    {
+     "q": "How long does a new starter have a buddy?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.4,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "Within how long must a phishing email be reported?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.6,
+     "phrase": true,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "How is the severity of a security incident rated?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "incident-all-2025"
+    },
+    {
+     "q": "Can I work from home?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.4,
+     "phrase": true,
+     "top": "remote-de-2025"
+    },
+    {
+     "q": "Who signs off on a purchase above 500 euros?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.4,
+     "phrase": true,
+     "top": "expense-all-2025"
+    },
+    {
+     "q": "What do I need to do before buying something expensive?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.6,
+     "phrase": true,
+     "top": "expense-all-2025"
+    },
+    {
+     "q": "When can I appeal my performance score?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "performance-all-2025"
+    },
+    {
+     "q": "What does the company pay for my courses and conferences?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "Which days are people expected to be in the office?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 0.25,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "holidays-uk-2026"
+    },
+    {
+     "q": "How many days of paid annual leave do I get?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.4,
+     "phrase": true,
+     "top": "leave-uk-2025"
+    },
+    {
+     "q": "How many days of paid annual leave do I get?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 0.3333333333333333,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "leave-uk-2025"
+    },
+    {
+     "q": "What is the hotel cap per night?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "travel-us-2025"
+    },
+    {
+     "q": "How many days a week can I work remotely?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 0.5,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "How many unused leave days can be carried over?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.4,
+     "phrase": true,
+     "top": "leave-uk-2025"
+    },
+    {
+     "q": "When does a medical certificate become necessary?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 0.3333333333333333,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "leave-uk-2025"
+    }
+   ]
+  },
+  {
+   "mode": "keyword",
+   "k": 1,
+   "filter": false,
+   "questions": 22,
+   "hit": 77.3,
+   "mrr": 0.773,
+   "precision": 77.3,
+   "phrase": 81.8,
+   "p50_ms": 0.85,
+   "p95_ms": 1.41,
+   "rows": [
+    {
+     "q": "How soon are expense claims reimbursed?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "expense-all-2025"
+    },
+    {
+     "q": "After how many minutes does a company laptop lock itself?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "How long must a password be?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "What is the yearly learning budget?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "How often do mentoring pairs meet?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "How many written quotes does a vendor contract above 5,000 euros need?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "procurement-all-2025"
+    },
+    {
+     "q": "How often are performance reviews held?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "performance-all-2025"
+    },
+    {
+     "q": "How long does a new starter have a buddy?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "Within how long must a phishing email be reported?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "incident-all-2025"
+    },
+    {
+     "q": "How is the severity of a security incident rated?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "incident-all-2025"
+    },
+    {
+     "q": "Can I work from home?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "remote-de-2025"
+    },
+    {
+     "q": "Who signs off on a purchase above 500 euros?",
+     "kind": "paraphrase",
+     "hit": false,
+     "rr": 0.0,
+     "precision": 0.0,
+     "phrase": true,
+     "top": "procurement-all-2025"
+    },
+    {
+     "q": "What do I need to do before buying something expensive?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "expense-all-2025"
+    },
+    {
+     "q": "When can I appeal my performance score?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "performance-all-2025"
+    },
+    {
+     "q": "What does the company pay for my courses and conferences?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "Which days are people expected to be in the office?",
+     "kind": "paraphrase",
+     "hit": false,
+     "rr": 0.0,
+     "precision": 0.0,
+     "phrase": false,
+     "top": "leave-de-2025"
+    },
+    {
+     "q": "How many days of paid annual leave do I get?",
+     "kind": "filtered",
+     "hit": false,
+     "rr": 0.0,
+     "precision": 0.0,
+     "phrase": false,
+     "top": "leave-de-2025"
+    },
+    {
+     "q": "How many days of paid annual leave do I get?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "leave-de-2025"
+    },
+    {
+     "q": "What is the hotel cap per night?",
+     "kind": "filtered",
+     "hit": false,
+     "rr": 0.0,
+     "precision": 0.0,
+     "phrase": false,
+     "top": "expense-all-2025"
+    },
+    {
+     "q": "How many days a week can I work remotely?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "remote-de-2025"
+    },
+    {
+     "q": "How many unused leave days can be carried over?",
+     "kind": "filtered",
+     "hit": false,
+     "rr": 0.0,
+     "precision": 0.0,
+     "phrase": false,
+     "top": "leave-de-2025"
+    },
+    {
+     "q": "When does a medical certificate become necessary?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "leave-de-2025"
+    }
+   ]
+  },
+  {
+   "mode": "keyword",
+   "k": 3,
+   "filter": false,
+   "questions": 22,
+   "hit": 95.5,
+   "mrr": 0.848,
+   "precision": 46.2,
+   "phrase": 95.5,
+   "p50_ms": 0.77,
+   "p95_ms": 1.43,
+   "rows": [
+    {
+     "q": "How soon are expense claims reimbursed?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.5,
+     "phrase": true,
+     "top": "expense-all-2025"
+    },
+    {
+     "q": "After how many minutes does a company laptop lock itself?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.6666666666666666,
+     "phrase": true,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "How long must a password be?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "What is the yearly learning budget?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "How often do mentoring pairs meet?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "How many written quotes does a vendor contract above 5,000 euros need?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "procurement-all-2025"
+    },
+    {
+     "q": "How often are performance reviews held?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "performance-all-2025"
+    },
+    {
+     "q": "How long does a new starter have a buddy?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "Within how long must a phishing email be reported?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.6666666666666666,
+     "phrase": true,
+     "top": "incident-all-2025"
+    },
+    {
+     "q": "How is the severity of a security incident rated?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "incident-all-2025"
+    },
+    {
+     "q": "Can I work from home?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "remote-de-2025"
+    },
+    {
+     "q": "Who signs off on a purchase above 500 euros?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 0.5,
+     "precision": 0.6666666666666666,
+     "phrase": true,
+     "top": "procurement-all-2025"
+    },
+    {
+     "q": "What do I need to do before buying something expensive?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "expense-all-2025"
+    },
+    {
+     "q": "When can I appeal my performance score?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "performance-all-2025"
+    },
+    {
+     "q": "What does the company pay for my courses and conferences?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "Which days are people expected to be in the office?",
+     "kind": "paraphrase",
+     "hit": false,
+     "rr": 0.0,
+     "precision": 0.0,
+     "phrase": false,
+     "top": "leave-de-2025"
+    },
+    {
+     "q": "How many days of paid annual leave do I get?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 0.3333333333333333,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "leave-de-2025"
+    },
+    {
+     "q": "How many days of paid annual leave do I get?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "leave-de-2025"
+    },
+    {
+     "q": "What is the hotel cap per night?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 0.5,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "expense-all-2025"
+    },
+    {
+     "q": "How many days a week can I work remotely?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "remote-de-2025"
+    },
+    {
+     "q": "How many unused leave days can be carried over?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 0.3333333333333333,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "leave-de-2025"
+    },
+    {
+     "q": "When does a medical certificate become necessary?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "leave-de-2025"
+    }
+   ]
+  },
+  {
+   "mode": "keyword",
+   "k": 5,
+   "filter": false,
+   "questions": 22,
+   "hit": 95.5,
+   "mrr": 0.848,
+   "precision": 38.3,
+   "phrase": 95.5,
+   "p50_ms": 0.76,
+   "p95_ms": 1.47,
+   "rows": [
+    {
+     "q": "How soon are expense claims reimbursed?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.5,
+     "phrase": true,
+     "top": "expense-all-2025"
+    },
+    {
+     "q": "After how many minutes does a company laptop lock itself?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.6666666666666666,
+     "phrase": true,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "How long must a password be?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.4,
+     "phrase": true,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "What is the yearly learning budget?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "How often do mentoring pairs meet?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "How many written quotes does a vendor contract above 5,000 euros need?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "procurement-all-2025"
+    },
+    {
+     "q": "How often are performance reviews held?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "performance-all-2025"
+    },
+    {
+     "q": "How long does a new starter have a buddy?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "Within how long must a phishing email be reported?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.4,
+     "phrase": true,
+     "top": "incident-all-2025"
+    },
+    {
+     "q": "How is the severity of a security incident rated?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "incident-all-2025"
+    },
+    {
+     "q": "Can I work from home?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "remote-de-2025"
+    },
+    {
+     "q": "Who signs off on a purchase above 500 euros?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 0.5,
+     "precision": 0.4,
+     "phrase": true,
+     "top": "procurement-all-2025"
+    },
+    {
+     "q": "What do I need to do before buying something expensive?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.6,
+     "phrase": true,
+     "top": "expense-all-2025"
+    },
+    {
+     "q": "When can I appeal my performance score?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "performance-all-2025"
+    },
+    {
+     "q": "What does the company pay for my courses and conferences?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.25,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "Which days are people expected to be in the office?",
+     "kind": "paraphrase",
+     "hit": false,
+     "rr": 0.0,
+     "precision": 0.0,
+     "phrase": false,
+     "top": "leave-de-2025"
+    },
+    {
+     "q": "How many days of paid annual leave do I get?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 0.3333333333333333,
+     "precision": 0.4,
+     "phrase": true,
+     "top": "leave-de-2025"
+    },
+    {
+     "q": "How many days of paid annual leave do I get?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "leave-de-2025"
+    },
+    {
+     "q": "What is the hotel cap per night?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 0.5,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "expense-all-2025"
+    },
+    {
+     "q": "How many days a week can I work remotely?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "remote-de-2025"
+    },
+    {
+     "q": "How many unused leave days can be carried over?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 0.3333333333333333,
+     "precision": 0.4,
+     "phrase": true,
+     "top": "leave-de-2025"
+    },
+    {
+     "q": "When does a medical certificate become necessary?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "leave-de-2025"
+    }
+   ]
+  },
+  {
+   "mode": "hybrid",
+   "k": 1,
+   "filter": false,
+   "questions": 22,
+   "hit": 81.8,
+   "mrr": 0.818,
+   "precision": 81.8,
+   "phrase": 86.4,
+   "p50_ms": 36.42,
+   "p95_ms": 41.91,
+   "rows": [
+    {
+     "q": "How soon are expense claims reimbursed?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "expense-all-2025"
+    },
+    {
+     "q": "After how many minutes does a company laptop lock itself?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "How long must a password be?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "What is the yearly learning budget?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "How often do mentoring pairs meet?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "How many written quotes does a vendor contract above 5,000 euros need?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "procurement-all-2025"
+    },
+    {
+     "q": "How often are performance reviews held?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "performance-all-2025"
+    },
+    {
+     "q": "How long does a new starter have a buddy?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "Within how long must a phishing email be reported?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "How is the severity of a security incident rated?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "incident-all-2025"
+    },
+    {
+     "q": "Can I work from home?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "remote-de-2025"
+    },
+    {
+     "q": "Who signs off on a purchase above 500 euros?",
+     "kind": "paraphrase",
+     "hit": false,
+     "rr": 0.0,
+     "precision": 0.0,
+     "phrase": true,
+     "top": "procurement-all-2025"
+    },
+    {
+     "q": "What do I need to do before buying something expensive?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "expense-all-2025"
+    },
+    {
+     "q": "When can I appeal my performance score?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "performance-all-2025"
+    },
+    {
+     "q": "What does the company pay for my courses and conferences?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "Which days are people expected to be in the office?",
+     "kind": "paraphrase",
+     "hit": false,
+     "rr": 0.0,
+     "precision": 0.0,
+     "phrase": false,
+     "top": "holidays-uk-2026"
+    },
+    {
+     "q": "How many days of paid annual leave do I get?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "leave-uk-2025"
+    },
+    {
+     "q": "How many days of paid annual leave do I get?",
+     "kind": "filtered",
+     "hit": false,
+     "rr": 0.0,
+     "precision": 0.0,
+     "phrase": false,
+     "top": "leave-uk-2025"
+    },
+    {
+     "q": "What is the hotel cap per night?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "travel-us-2025"
+    },
+    {
+     "q": "How many days a week can I work remotely?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "remote-de-2025"
+    },
+    {
+     "q": "How many unused leave days can be carried over?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "leave-uk-2025"
+    },
+    {
+     "q": "When does a medical certificate become necessary?",
+     "kind": "filtered",
+     "hit": false,
+     "rr": 0.0,
+     "precision": 0.0,
+     "phrase": false,
+     "top": "leave-uk-2025"
+    }
+   ]
+  },
+  {
+   "mode": "hybrid",
+   "k": 3,
+   "filter": false,
+   "questions": 22,
+   "hit": 95.5,
+   "mrr": 0.886,
+   "precision": 43.9,
+   "phrase": 95.5,
+   "p50_ms": 29.59,
+   "p95_ms": 44.95,
+   "rows": [
+    {
+     "q": "How soon are expense claims reimbursed?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "expense-all-2025"
+    },
+    {
+     "q": "After how many minutes does a company laptop lock itself?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.6666666666666666,
+     "phrase": true,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "How long must a password be?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.6666666666666666,
+     "phrase": true,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "What is the yearly learning budget?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "How often do mentoring pairs meet?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.6666666666666666,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "How many written quotes does a vendor contract above 5,000 euros need?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "procurement-all-2025"
+    },
+    {
+     "q": "How often are performance reviews held?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "performance-all-2025"
+    },
+    {
+     "q": "How long does a new starter have a buddy?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "Within how long must a phishing email be reported?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.6666666666666666,
+     "phrase": true,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "How is the severity of a security incident rated?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "incident-all-2025"
+    },
+    {
+     "q": "Can I work from home?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.6666666666666666,
+     "phrase": true,
+     "top": "remote-de-2025"
+    },
+    {
+     "q": "Who signs off on a purchase above 500 euros?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 0.5,
+     "precision": 0.6666666666666666,
+     "phrase": true,
+     "top": "procurement-all-2025"
+    },
+    {
+     "q": "What do I need to do before buying something expensive?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 1.0,
+     "phrase": true,
+     "top": "expense-all-2025"
+    },
+    {
+     "q": "When can I appeal my performance score?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "performance-all-2025"
+    },
+    {
+     "q": "What does the company pay for my courses and conferences?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "Which days are people expected to be in the office?",
+     "kind": "paraphrase",
+     "hit": false,
+     "rr": 0.0,
+     "precision": 0.0,
+     "phrase": false,
+     "top": "holidays-uk-2026"
+    },
+    {
+     "q": "How many days of paid annual leave do I get?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "leave-uk-2025"
+    },
+    {
+     "q": "How many days of paid annual leave do I get?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 0.5,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "leave-uk-2025"
+    },
+    {
+     "q": "What is the hotel cap per night?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "travel-us-2025"
+    },
+    {
+     "q": "How many days a week can I work remotely?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "remote-de-2025"
+    },
+    {
+     "q": "How many unused leave days can be carried over?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "leave-uk-2025"
+    },
+    {
+     "q": "When does a medical certificate become necessary?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 0.5,
+     "precision": 0.3333333333333333,
+     "phrase": true,
+     "top": "leave-uk-2025"
+    }
+   ]
+  },
+  {
+   "mode": "hybrid",
+   "k": 5,
+   "filter": false,
+   "questions": 22,
+   "hit": 95.5,
+   "mrr": 0.886,
+   "precision": 30.0,
+   "phrase": 95.5,
+   "p50_ms": 18.39,
+   "p95_ms": 32.76,
+   "rows": [
+    {
+     "q": "How soon are expense claims reimbursed?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "expense-all-2025"
+    },
+    {
+     "q": "After how many minutes does a company laptop lock itself?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.4,
+     "phrase": true,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "How long must a password be?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.4,
+     "phrase": true,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "What is the yearly learning budget?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "How often do mentoring pairs meet?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.4,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "How many written quotes does a vendor contract above 5,000 euros need?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "procurement-all-2025"
+    },
+    {
+     "q": "How often are performance reviews held?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "performance-all-2025"
+    },
+    {
+     "q": "How long does a new starter have a buddy?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.4,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "Within how long must a phishing email be reported?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.6,
+     "phrase": true,
+     "top": "remote-all-2025"
+    },
+    {
+     "q": "How is the severity of a security incident rated?",
+     "kind": "plain",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "incident-all-2025"
+    },
+    {
+     "q": "Can I work from home?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.4,
+     "phrase": true,
+     "top": "remote-de-2025"
+    },
+    {
+     "q": "Who signs off on a purchase above 500 euros?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 0.5,
+     "precision": 0.4,
+     "phrase": true,
+     "top": "procurement-all-2025"
+    },
+    {
+     "q": "What do I need to do before buying something expensive?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.6,
+     "phrase": true,
+     "top": "expense-all-2025"
+    },
+    {
+     "q": "When can I appeal my performance score?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "performance-all-2025"
+    },
+    {
+     "q": "What does the company pay for my courses and conferences?",
+     "kind": "paraphrase",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "onboarding-all-2025"
+    },
+    {
+     "q": "Which days are people expected to be in the office?",
+     "kind": "paraphrase",
+     "hit": false,
+     "rr": 0.0,
+     "precision": 0.0,
+     "phrase": false,
+     "top": "holidays-uk-2026"
+    },
+    {
+     "q": "How many days of paid annual leave do I get?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.4,
+     "phrase": true,
+     "top": "leave-uk-2025"
+    },
+    {
+     "q": "How many days of paid annual leave do I get?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 0.5,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "leave-uk-2025"
+    },
+    {
+     "q": "What is the hotel cap per night?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "travel-us-2025"
+    },
+    {
+     "q": "How many days a week can I work remotely?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "remote-de-2025"
+    },
+    {
+     "q": "How many unused leave days can be carried over?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 1.0,
+     "precision": 0.4,
+     "phrase": true,
+     "top": "leave-uk-2025"
+    },
+    {
+     "q": "When does a medical certificate become necessary?",
+     "kind": "filtered",
+     "hit": true,
+     "rr": 0.5,
+     "precision": 0.2,
+     "phrase": true,
+     "top": "leave-uk-2025"
+    }
+   ]
+  }
+ ],
+ "by_kind": [
+  {
+   "mode": "semantic",
+   "k": 3,
+   "filter": false,
+   "questions": 10,
+   "hit": 100.0,
+   "mrr": 1.0,
+   "precision": 53.3,
+   "phrase": 100.0,
+   "p50_ms": 17.18,
+   "p95_ms": 18.12,
+   "kind": "plain"
+  },
+  {
+   "mode": "semantic",
+   "k": 3,
+   "filter": false,
+   "questions": 6,
+   "hit": 83.3,
+   "mrr": 0.833,
+   "precision": 44.4,
+   "phrase": 83.3,
+   "p50_ms": 17.55,
+   "p95_ms": 25.59,
+   "kind": "paraphrase"
+  },
+  {
+   "mode": "semantic",
+   "k": 3,
+   "filter": false,
+   "questions": 6,
+   "hit": 100.0,
+   "mrr": 0.694,
+   "precision": 33.3,
+   "phrase": 100.0,
+   "p50_ms": 17.35,
+   "p95_ms": 18.52,
+   "kind": "filtered"
+  },
+  {
+   "mode": "keyword",
+   "k": 3,
+   "filter": false,
+   "questions": 10,
+   "hit": 100.0,
+   "mrr": 1.0,
+   "precision": 48.3,
+   "phrase": 100.0,
+   "p50_ms": 0.96,
+   "p95_ms": 1.5,
+   "kind": "plain"
+  },
+  {
+   "mode": "keyword",
+   "k": 3,
+   "filter": false,
+   "questions": 6,
+   "hit": 83.3,
+   "mrr": 0.75,
+   "precision": 55.6,
+   "phrase": 83.3,
+   "p50_ms": 0.83,
+   "p95_ms": 2.93,
+   "kind": "paraphrase"
+  },
+  {
+   "mode": "keyword",
+   "k": 3,
+   "filter": false,
+   "questions": 6,
+   "hit": 100.0,
+   "mrr": 0.694,
+   "precision": 33.3,
+   "phrase": 100.0,
+   "p50_ms": 1.29,
+   "p95_ms": 1.63,
+   "kind": "filtered"
+  },
+  {
+   "mode": "hybrid",
+   "k": 3,
+   "filter": false,
+   "questions": 10,
+   "hit": 100.0,
+   "mrr": 1.0,
+   "precision": 46.7,
+   "phrase": 100.0,
+   "p50_ms": 20.44,
+   "p95_ms": 40.31,
+   "kind": "plain"
+  },
+  {
+   "mode": "hybrid",
+   "k": 3,
+   "filter": false,
+   "questions": 6,
+   "hit": 83.3,
+   "mrr": 0.75,
+   "precision": 50.0,
+   "phrase": 83.3,
+   "p50_ms": 38.44,
+   "p95_ms": 49.31,
+   "kind": "paraphrase"
+  },
+  {
+   "mode": "hybrid",
+   "k": 3,
+   "filter": false,
+   "questions": 6,
+   "hit": 100.0,
+   "mrr": 0.833,
+   "precision": 33.3,
+   "phrase": 100.0,
+   "p50_ms": 24.25,
+   "p95_ms": 27.09,
+   "kind": "filtered"
+  }
+ ],
+ "filter_effect": [
+  {
+   "mode": "semantic",
+   "k": 3,
+   "filter": false,
+   "questions": 6,
+   "hit": 100.0,
+   "mrr": 0.694,
+   "precision": 33.3,
+   "phrase": 100.0,
+   "p50_ms": 20.15,
+   "p95_ms": 21.79
+  },
+  {
+   "mode": "semantic",
+   "k": 3,
+   "filter": true,
+   "questions": 6,
+   "hit": 100.0,
+   "mrr": 1.0,
+   "precision": 66.7,
+   "phrase": 100.0,
+   "p50_ms": 20.65,
+   "p95_ms": 23.27
+  },
+  {
+   "mode": "hybrid",
+   "k": 3,
+   "filter": false,
+   "questions": 6,
+   "hit": 100.0,
+   "mrr": 0.833,
+   "precision": 33.3,
+   "phrase": 100.0,
+   "p50_ms": 26.55,
+   "p95_ms": 30.41
+  },
+  {
+   "mode": "hybrid",
+   "k": 3,
+   "filter": true,
+   "questions": 6,
+   "hit": 100.0,
+   "mrr": 1.0,
+   "precision": 66.7,
+   "phrase": 100.0,
+   "p50_ms": 21.83,
+   "p95_ms": 24.57
+  }
+ ],
+ "gate": {
+  "answerable_min": 0.586,
+  "answerable_median": 0.73,
+  "not_in_documents_max": 0.599,
+  "separable": false,
+  "threshold": 0.6,
+  "refused_correctly": 3,
+  "not_in_documents": 3,
+  "wrongly_refused": 1,
+  "answerable": 22,
+  "lowest_answerable": [
+   [
+    "When does a medical certificate become necessary?",
+    0.5862
+   ],
+   [
+    "What do I need to do before buying something expensive?",
+    0.6614
+   ],
+   [
+    "What is the hotel cap per night?",
+    0.6667
+   ]
+  ],
+  "highest_not_in_docs": [
+   [
+    "How much is the annual bonus?",
+    0.599
+   ],
+   [
+    "What is the company dress code?",
+    0.5392
+   ],
+   [
+    "When do stock options vest?",
+    0.5369
+   ]
+  ]
+ },
+ "scale": [
+  {
+   "chunks": 1000,
+   "embed_seconds_for_10000": 206.3,
+   "load_seconds": 0.06,
+   "index_build_seconds": 0.72,
+   "hnsw_ef40_p50_ms": 1.53,
+   "hnsw_ef40_recall_at_10": 100.0,
+   "hnsw_ef100_p50_ms": 1.94,
+   "hnsw_ef100_recall_at_10": 100.0,
+   "exact_sql_scan_p50_ms": 1.83,
+   "pgvector_version": "0.6.2"
+  },
+  {
+   "chunks": 5000,
+   "embed_seconds_for_10000": 206.3,
+   "load_seconds": 0.32,
+   "index_build_seconds": 2.34,
+   "hnsw_ef40_p50_ms": 2.71,
+   "hnsw_ef40_recall_at_10": 98.0,
+   "hnsw_ef100_p50_ms": 4.41,
+   "hnsw_ef100_recall_at_10": 99.6,
+   "exact_sql_scan_p50_ms": 4.28,
+   "pgvector_version": "0.6.2"
+  },
+  {
+   "chunks": 10000,
+   "embed_seconds_for_10000": 206.3,
+   "load_seconds": 0.84,
+   "index_build_seconds": 6.32,
+   "hnsw_ef40_p50_ms": 2.22,
+   "hnsw_ef40_recall_at_10": 96.2,
+   "hnsw_ef100_p50_ms": 3.1,
+   "hnsw_ef100_recall_at_10": 98.8,
+   "exact_sql_scan_p50_ms": 2.21,
+   "filter_10%_ef40_rows_returned_of_10": 4.4,
+   "filter_10%_ef400_rows_returned_of_10": 10,
+   "filter_1%_ef40_rows_returned_of_10": 0.4,
+   "filter_1%_ef400_rows_returned_of_10": 3.4,
+   "pgvector_version": "0.6.2"
+  }
+ ]
+}

@@ -1,16 +1,16 @@
 """A small HTTP API over the vector lab:  uvicorn app.server:app --port 8100
 
-Set VECTOR_LAB_KEY to require the header  X-Api-Key.  Data is kept in ./data/chroma (override with VECTOR_LAB_DIR).
+Set VECTOR_LAB_KEY to require the header  X-Api-Key.  The database is VECTOR_LAB_DB_URL (Supabase or any Postgres with pgvector).
 """
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from .corpus import DOCS
+from .db import database_url
 from .engine import MODES, VectorLab
 from .graph import build, run
 
@@ -22,7 +22,7 @@ _graph = None
 def lab() -> VectorLab:
     global _lab, _graph
     if _lab is None:
-        _lab = VectorLab(Path(os.environ.get("VECTOR_LAB_DIR", Path(__file__).parent.parent / "data" / "chroma")))
+        _lab = VectorLab(database_url(allow_local=os.environ.get("VECTOR_LAB_ALLOW_LOCAL") == "1"))
         _graph = build(_lab)
     return _lab
 

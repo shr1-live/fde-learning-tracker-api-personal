@@ -16,21 +16,23 @@ import csv
 import json
 import statistics as st
 import sys
-import tempfile
 import time
 from pathlib import Path
 
 import numpy as np
 
 from app.corpus import DOCS, QUESTIONS
+from app.db import database_url, describe
 from app.engine import MODEL, MODES, VectorLab
 
 OUT = Path(__file__).parent / "results"
 OUT.mkdir(exist_ok=True)
 
 
-def build(path) -> tuple[VectorLab, dict]:
-    lab = VectorLab(path)
+def build(url) -> tuple[VectorLab, dict]:
+    lab = VectorLab(url, owner="eval")
+    for d in DOCS:
+        lab.delete(d.doc_id)
     t0 = time.perf_counter()
     chunks = sum(lab.ingest(d.doc_id, d.title, d.body, department=d.department, region=d.region, year=d.year) for d in DOCS)
     return lab, {"documents": len(DOCS), "chunks": chunks, "ingest_seconds": round(time.perf_counter() - t0, 2)}
@@ -81,40 +83,69 @@ def gate_analysis(lab: VectorLab) -> dict:
 
 
 def scale() -> list[dict]:
-    """Exact search and the HNSW index over the same vectors, as the number of chunks grows. The texts are generated, so this
-    measures speed and approximation quality, not relevance."""
-    import chromadb
+    """Exact search against the pgvector HNSW index over the same vectors as the number of chunks grows, and what a selective
+    metadata filter does to an HNSW search. The texts are generated, so this measures speed and approximation, not relevance."""
+    import psycopg
+    from pgvector.psycopg import register_vector
     rng = np.random.default_rng(7)
     words = sorted({w for d in DOCS for w in d.body.lower().replace(".", " ").replace(",", " ").split() if w.isalpha() and len(w) > 3})
-    lab = VectorLab(None)
+    lab = VectorLab(database_url(), owner="scale")
+    N = 10000
+    texts = [" ".join(rng.choice(words, size=24)) for _ in range(N)]
+    t0 = time.perf_counter()
+    all_vecs = np.array(lab.emb.embed_documents(texts), dtype=np.float32)
+    embed_s = time.perf_counter() - t0
+    print("embedded", N, round(embed_s, 1), "s", flush=True)
     out = []
-    for n in (1000, 5000, 10000):
-        texts = [" ".join(rng.choice(words, size=24)) for _ in range(n)]
-        t0 = time.perf_counter()
-        vecs = np.array(lab.emb.embed_documents(texts), dtype=np.float32)
-        embed_s = time.perf_counter() - t0
-        client = chromadb.EphemeralClient()
-        name = f"scale{n}"
-        try:
-            client.delete_collection(name)
-        except Exception:
-            pass
-        col = client.create_collection(name, metadata={"hnsw:space": "cosine"})
-        t0 = time.perf_counter()
-        for i in range(0, n, 2000):
-            col.add(ids=[str(j) for j in range(i, min(i + 2000, n))], embeddings=vecs[i:i + 2000].tolist(), documents=texts[i:i + 2000])
-        build_s = time.perf_counter() - t0
-        qs = vecs[rng.choice(n, size=50, replace=False)] + rng.normal(0, 0.02, (50, vecs.shape[1])).astype(np.float32)
-        qs /= np.linalg.norm(qs, axis=1, keepdims=True)
-        exact_t, ann_t, overlap = [], [], []
-        for q in qs:
-            t0 = time.perf_counter(); top = np.argsort(-(vecs @ q))[:10]; exact_t.append((time.perf_counter() - t0) * 1000)
-            t0 = time.perf_counter(); r = col.query(query_embeddings=[q.tolist()], n_results=10); ann_t.append((time.perf_counter() - t0) * 1000)
-            overlap.append(len(set(map(int, r["ids"][0])) & set(map(int, top))) / 10)
-        out.append({"chunks": n, "embed_seconds": round(embed_s, 1), "index_build_seconds": round(build_s, 2),
-                    "exact_p50_ms": round(st.median(exact_t), 2), "hnsw_p50_ms": round(st.median(ann_t), 2),
-                    "hnsw_p95_ms": round(float(np.percentile(ann_t, 95)), 2), "recall_at_10_vs_exact": round(100 * st.mean(overlap), 1)})
-        print("scale", out[-1], flush=True)
+    with psycopg.connect(database_url(), autocommit=True) as c:
+        register_vector(c)
+        for n in (1000, 5000, 10000):
+            vecs = all_vecs[:n]
+            c.execute("drop table if exists scale_t")
+            c.execute("create table scale_t (id int primary key, grp10 int, grp100 int, embedding vector(384))")
+            t0 = time.perf_counter()
+            with c.cursor().copy("copy scale_t (id, grp10, grp100, embedding) from stdin (format binary)") as cp:
+                cp.set_types(["int4", "int4", "int4", "vector"])
+                for i in range(n):
+                    cp.write_row((i, i % 10, i % 100, vecs[i]))
+            copy_s = time.perf_counter() - t0
+            t0 = time.perf_counter()
+            c.execute("create index scale_hnsw on scale_t using hnsw (embedding vector_cosine_ops) with (m = 16, ef_construction = 64)")
+            build_s = time.perf_counter() - t0
+            c.execute("analyze scale_t")
+            qs = vecs[rng.choice(n, size=50, replace=False)] + rng.normal(0, 0.02, (50, 384)).astype(np.float32)
+            qs /= np.linalg.norm(qs, axis=1, keepdims=True)
+            row = {"chunks": n, "embed_seconds_for_10000": round(embed_s, 1), "load_seconds": round(copy_s, 2), "index_build_seconds": round(build_s, 2)}
+            for ef in (40, 100):
+                c.execute(f"set hnsw.ef_search = {ef}")
+                ann_t, ov = [], []
+                for q in qs:
+                    top = np.argsort(-(vecs @ q))[:10]
+                    t0 = time.perf_counter(); r = c.execute("select id from scale_t order by embedding <=> %s limit 10", (q,)).fetchall(); ann_t.append((time.perf_counter() - t0) * 1000)
+                    ov.append(len({x[0] for x in r} & set(map(int, top))) / 10)
+                row[f"hnsw_ef{ef}_p50_ms"] = round(st.median(ann_t), 2)
+                row[f"hnsw_ef{ef}_recall_at_10"] = round(100 * st.mean(ov), 1)
+            exact_t = []
+            c.execute("set enable_indexscan = off")
+            for q in qs[:25]:
+                t0 = time.perf_counter(); c.execute("select id from scale_t order by embedding <=> %s limit 10", (q,)).fetchall(); exact_t.append((time.perf_counter() - t0) * 1000)
+            c.execute("set enable_indexscan = on")
+            row["exact_sql_scan_p50_ms"] = round(st.median(exact_t), 2)
+            if n == N:  # a filter that keeps 10% or 1% of the rows, with the index in use
+                for col, share in (("grp10", "10%"), ("grp100", "1%")):
+                    for ef in (40, 400):
+                        c.execute(f"set hnsw.ef_search = {ef}")
+                        c.execute("set enable_seqscan = off")
+                        got = [len(c.execute(f"select id from scale_t where {col} = 3 order by embedding <=> %s limit 10", (q,)).fetchall()) for q in qs[:25]]
+                        c.execute("set enable_seqscan = on")
+                        row[f"filter_{share}_ef{ef}_rows_returned_of_10"] = round(st.mean(got), 1)
+            out.append(row)
+            print("scale", row, flush=True)
+        ver = c.execute("select extversion from pg_extension where extname='vector'").fetchone()[0]
+        c.execute("drop table if exists scale_t")
+    for r in out:
+        r["pgvector_version"] = ver
+    lab.close()
     return out
 
 
@@ -124,10 +155,11 @@ def md(rs: list[dict], cols=("mode", "k", "filter", "hit", "mrr", "precision", "
 
 
 if __name__ == "__main__":
-    tmp = tempfile.mkdtemp()
-    lab, ingest = build(tmp)
+    url = database_url()
+    print("database:", describe(url), flush=True)
+    lab, ingest = build(url)
     print("ingest", ingest, flush=True)
-    result: dict = {"model": MODEL, "ingest": ingest, "questions": {k: sum(q.kind == k for q in QUESTIONS) for k in ("plain", "paraphrase", "filtered", "out_of_scope")}}
+    result: dict = {"vector_db": "Postgres + pgvector", "pgvector_version": lab.stats()["pgvector_version"], "model": MODEL, "ingest": ingest, "questions": {k: sum(q.kind == k for q in QUESTIONS) for k in ("plain", "paraphrase", "filtered", "out_of_scope")}}
     answerable = {"plain", "paraphrase", "filtered"}
     result["matrix"] = [score(lab, m, k, False, answerable) for m in MODES for k in (1, 3, 5)]
     result["by_kind"] = [{**score(lab, m, 3, False, {kind}), "kind": kind} for m in MODES for kind in ("plain", "paraphrase", "filtered")]
@@ -138,8 +170,8 @@ if __name__ == "__main__":
     for key in ("matrix", "by_kind", "filter_effect"):
         for r in result[key]:
             r.pop("rows", None) if key != "matrix" else None
-    (OUT / "eval.json").write_text(json.dumps(result, indent=1, default=str), encoding="utf-8")
-    with open(OUT / "eval.csv", "w", newline="", encoding="utf-8") as f:
+    (OUT / "eval_pgvector.json").write_text(json.dumps(result, indent=1, default=str), encoding="utf-8")
+    with open(OUT / "eval_pgvector.csv", "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f); w.writerow(["mode", "k", "filter", "hit_pct", "mrr", "precision_pct", "phrase_pct", "p50_ms", "p95_ms"])
         for r in result["matrix"]:
             w.writerow([r["mode"], r["k"], r["filter"], r["hit"], r["mrr"], r["precision"], r["phrase"], r["p50_ms"], r["p95_ms"]])

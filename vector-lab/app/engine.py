@@ -1,31 +1,39 @@
-"""Vector retrieval for Week 2, Day 3, built from LangChain parts.
+"""Vector retrieval for Week 2, Day 3 on **Postgres + pgvector** (the primary store; the Chroma version is on the branch
+feature/week2-day3-vector-chroma-local).
 
-* Store: Chroma (a real vector database; HNSW index, cosine distance, saved to disk, metadata filters).
-* Embeddings: BAAI/bge-small-en-v1.5 (384 numbers per passage) through fastembed, wrapped as a LangChain Embeddings class.
-* Chunking: LangChain RecursiveCharacterTextSplitter; every chunk has a stable id (doc_id:part) so a re-ingest replaces, never duplicates.
-* Search: semantic (vector), keyword (BM25) or hybrid (reciprocal rank fusion), all with the same metadata filter and Top-K.
+* Store: one Postgres table (`vector_chunks_<dimensions>`) with a pgvector column, an HNSW index (cosine), a generated
+  full-text column and a JSONB metadata column. Works on Supabase, or any Postgres with the `vector` extension.
+* Embeddings: BAAI/bge-small-en-v1.5 (384 numbers) through fastembed, as a LangChain Embeddings class. The model name is stored
+  on every row and a search only compares vectors made by the same model.
+* Chunking: LangChain RecursiveCharacterTextSplitter; chunk ids are doc_id:part, so a re-ingest replaces, never duplicates.
+* Search: semantic (vector), keyword (Postgres full-text), hybrid (reciprocal rank fusion), with a metadata filter and Top-K.
+* Isolation: every query is scoped to an `owner`, like the tracker's other tables.
 """
 from __future__ import annotations
 
-import math
 import re
 import time
-from collections import Counter
-from dataclasses import dataclass, field
-from pathlib import Path
+from dataclasses import dataclass
 
-from langchain_chroma import Chroma
+import numpy as np
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from pgvector.psycopg import register_vector
+from psycopg.types.json import Jsonb
+from psycopg_pool import ConnectionPool
 
 MODEL = "BAAI/bge-small-en-v1.5"
+DIMENSIONS = 384
 QUERY_PREFIX = "Represent this sentence for searching relevant passages: "  # bge: queries get this prefix, passages do not
 MODES = ("semantic", "keyword", "hybrid")
 
 
 class BgeEmbeddings(Embeddings):
     """fastembed (ONNX, runs on CPU, no GPU or API key) as a LangChain Embeddings object."""
+
+    model_name = MODEL
+    dimensions = DIMENSIONS
 
     def __init__(self, model: str = MODEL):
         from fastembed import TextEmbedding
@@ -41,11 +49,7 @@ class BgeEmbeddings(Embeddings):
 
 
 _WORD = re.compile(r"[a-z0-9]+(?:,[0-9]{3})*")
-_STOP = set("a an the of to in on at is are was were be been do does did how what when who which i my me we you it its for and or with from by this that can will".split())
-
-
-def tokens(text: str) -> list[str]:
-    return [w for w in _WORD.findall(text.lower()) if w not in _STOP]
+_KEY = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,40}$")
 
 
 @dataclass
@@ -55,7 +59,7 @@ class Hit:
     title: str
     text: str
     metadata: dict
-    score: float  # semantic: cosine similarity 0..1; keyword: BM25; hybrid: RRF
+    score: float  # semantic: cosine similarity 0..1; keyword: ts_rank_cd; hybrid: RRF
     rank: int = 0
     sem: float | None = None  # cosine similarity, when the passage was found by vector search
 
@@ -68,7 +72,7 @@ class Timing:
 
 
 def matches(meta: dict, flt: dict | None) -> bool:
-    """Chroma-style filter ($and, $or, $eq, $ne, $gt, $gte, $lt, $lte, $in) evaluated in Python, used by keyword search."""
+    """Python check of a filter ($and, $or, $eq, $ne, $gt, $gte, $lt, $lte, $in). Used by the tests to verify what the database returned."""
     if not flt:
         return True
     for key, cond in flt.items():
@@ -93,81 +97,140 @@ def matches(meta: dict, flt: dict | None) -> bool:
     return True
 
 
+def filter_sql(flt: dict | None, params: list) -> str:
+    """Turns a filter into a parameterised SQL condition on the JSONB `metadata` column. Keys are checked against a pattern and
+    every value is a bound parameter, so a filter can never change the shape of the query."""
+    if not flt:
+        return "true"
+    parts = []
+    for key, cond in flt.items():
+        if key in ("$and", "$or"):
+            if not isinstance(cond, list) or not cond:
+                raise ValueError(f"{key} needs a list of conditions")
+            parts.append("(" + f" {key[1:]} ".join(filter_sql(c, params) for c in cond) + ")")
+            continue
+        if not _KEY.match(key):
+            raise ValueError(f"Bad filter field name: {key!r}")
+        if not isinstance(cond, dict):
+            cond = {"$eq": cond}
+        for op, want in cond.items():
+            if op == "$eq":
+                params.append(Jsonb({key: want})); parts.append("metadata @> %s")
+            elif op == "$in":
+                if not isinstance(want, list) or not want:
+                    raise ValueError("$in needs a non-empty list")
+                alts = []
+                for w in want:
+                    params.append(Jsonb({key: w})); alts.append("metadata @> %s")
+                parts.append("(" + " or ".join(alts) + ")")
+            elif op == "$ne":
+                params.extend([key, Jsonb(want)]); parts.append("(metadata -> %s::text) is distinct from %s")
+            elif op in ("$gt", "$gte", "$lt", "$lte"):
+                if isinstance(want, bool) or not isinstance(want, (int, float, str)):
+                    raise ValueError(f"{op} needs a number or text")
+                sym = {"$gt": ">", "$gte": ">=", "$lt": "<", "$lte": "<="}[op]
+                params.extend([key, Jsonb(want)]); parts.append(f"(metadata -> %s::text) {sym} %s")
+            else:
+                raise ValueError(f"Unknown filter operator {op}")
+    return "(" + " and ".join(parts) + ")" if parts else "true"
+
+
 class VectorLab:
-    def __init__(self, path: str | Path | None = None, embeddings: Embeddings | None = None, collection: str = "handbook",
-                 chunk_size: int = 400, overlap: int = 60):
+    def __init__(self, url: str, embeddings: Embeddings | None = None, owner: str = "shared", chunk_size: int = 400, overlap: int = 60,
+                 ef_search: int = 100, table: str | None = None):
         self.emb = embeddings or BgeEmbeddings()
-        self.store = Chroma(collection_name=collection, embedding_function=self.emb, persist_directory=str(path) if path else None,
-                            collection_metadata={"hnsw:space": "cosine"})
+        self.dim = int(getattr(self.emb, "dimensions", DIMENSIONS))
+        self.model = getattr(self.emb, "model_name", MODEL)
+        self.table = table or f"vector_chunks_{self.dim}"
+        if not re.fullmatch(r"[a-z0-9_]{3,63}", self.table):
+            raise ValueError("bad table name")
+        self.owner, self.ef_search = owner, ef_search
         self.splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=overlap)
-        self._bm25: dict | None = None  # built lazily, dropped on every change
+        self._bootstrap(url)
+        self.pool = ConnectionPool(url, min_size=1, max_size=4, configure=register_vector, kwargs={"autocommit": True}, open=True)
+        self._create_table()
+
+    def _bootstrap(self, url: str) -> None:
+        import psycopg
+        with psycopg.connect(url, autocommit=True) as c:  # the vector type must exist before connections register it
+            c.execute("create extension if not exists vector")
+
+    def _create_table(self) -> None:
+        t = self.table
+        with self.pool.connection() as c:
+            c.execute(f"""create table if not exists {t} (
+                id text primary key, owner text not null default 'shared', doc_id text not null, title text not null, part int not null,
+                content text not null, metadata jsonb not null default '{{}}', embed_model text not null,
+                embedding vector({self.dim}) not null,
+                tsv tsvector generated always as (to_tsvector('english', content)) stored, created_at timestamptz not null default now())""")
+            c.execute(f"create index if not exists {t}_hnsw on {t} using hnsw (embedding vector_cosine_ops) with (m = 16, ef_construction = 64)")
+            c.execute(f"create index if not exists {t}_tsv on {t} using gin (tsv)")
+            c.execute(f"create index if not exists {t}_meta on {t} using gin (metadata jsonb_path_ops)")
+            c.execute(f"create index if not exists {t}_owner_doc on {t} (owner, doc_id)")
+            c.execute(f"alter table {t} enable row level security")  # no policy: only this service's own connection can read or write
+
+    def close(self) -> None:
+        self.pool.close()
 
     # ---- ingestion, update, delete (kept in sync) ----
     def ingest(self, doc_id: str, title: str, body: str, **meta) -> int:
-        """Split, embed and store one document. Re-ingesting a doc_id replaces its chunks (parts that no longer exist are removed)."""
-        self.delete(doc_id)
+        """Split, embed and store one document in one transaction. Re-ingesting a doc_id replaces its chunks."""
         parts = self.splitter.split_text(body)
-        base = {"doc_id": doc_id, "title": title, **meta}
-        docs = [Document(page_content=p, metadata={**base, "part": i + 1}) for i, p in enumerate(parts)]
-        if docs:
-            self.store.add_documents(docs, ids=[f"{doc_id}:{i + 1}" for i in range(len(docs))])
-        self._bm25 = None
+        docs = [Document(page_content=p, metadata={**meta, "part": i + 1}) for i, p in enumerate(parts)]
+        vecs = self.emb.embed_documents([d.page_content for d in docs]) if docs else []
+        with self.pool.connection() as c, c.transaction():
+            c.execute(f"delete from {self.table} where owner = %s and doc_id = %s", (self.owner, doc_id))
+            for i, (d, v) in enumerate(zip(docs, vecs)):
+                m = {k: val for k, val in d.metadata.items() if k != "part"}
+                c.execute(f"insert into {self.table} (id, owner, doc_id, title, part, content, metadata, embed_model, embedding) values (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                          (f"{self.owner}:{doc_id}:{i + 1}", self.owner, doc_id, title, i + 1, d.page_content, Jsonb(m), self.model, np.array(v, dtype=np.float32)))
         return len(docs)
 
     def delete(self, doc_id: str) -> int:
-        got = self.store.get(where={"doc_id": doc_id})
-        ids = got.get("ids", [])
-        if ids:
-            self.store.delete(ids=ids)
-        self._bm25 = None
-        return len(ids)
+        with self.pool.connection() as c:
+            return c.execute(f"delete from {self.table} where owner = %s and doc_id = %s", (self.owner, doc_id)).rowcount
 
     def count(self) -> int:
-        return self.store._collection.count()
+        with self.pool.connection() as c:
+            return c.execute(f"select count(*) from {self.table} where owner = %s", (self.owner,)).fetchone()[0]
 
     def documents(self) -> list[dict]:
-        got = self.store.get(include=["metadatas"])
-        seen: dict[str, dict] = {}
-        for m in got["metadatas"]:
-            d = seen.setdefault(m["doc_id"], {**{k: v for k, v in m.items() if k != "part"}, "chunks": 0})
-            d["chunks"] += 1
-        return sorted(seen.values(), key=lambda d: d["doc_id"])
+        with self.pool.connection() as c:
+            rows = c.execute(f"select doc_id, title, metadata, count(*) from {self.table} where owner = %s group by doc_id, title, metadata order by doc_id", (self.owner,)).fetchall()
+        return [{"doc_id": d, "title": t, **m, "chunks": n} for d, t, m, n in rows]
 
     # ---- search ----
+    def _hit(self, row, rank: int, sem: float | None) -> Hit:
+        cid, doc_id, title, part, text, meta, score = row
+        return Hit(cid, doc_id, title, text, {**meta, "doc_id": doc_id, "title": title, "part": part}, round(float(score), 4), rank, sem)
+
     def _semantic(self, q: str, k: int, flt: dict | None) -> list[Hit]:
-        res = self.store.similarity_search_with_score(q, k=k, filter=flt or None)  # score = cosine distance
-        return [Hit(d.id or f"{d.metadata['doc_id']}:{d.metadata['part']}", d.metadata["doc_id"], d.metadata["title"], d.page_content, d.metadata,
-                    round(1.0 - dist, 4), i + 1, round(1.0 - dist, 4)) for i, (d, dist) in enumerate(res)]
+        params: list = []
+        cond = filter_sql(flt, params)
+        qv = np.array(self.emb.embed_query(q), dtype=np.float32)
+        sql = (f"select id, doc_id, title, part, content, metadata, 1 - (embedding <=> %s) as sim from {self.table} "
+               f"where owner = %s and embed_model = %s and {cond} order by embedding <=> %s limit %s")
+        with self.pool.connection() as c, c.transaction():
+            c.execute(f"set local hnsw.ef_search = {int(self.ef_search)}")
+            try:
+                with c.transaction():  # a savepoint: an unknown setting (pgvector before 0.8) must not abort the search
+                    c.execute("set local hnsw.iterative_scan = relaxed_order")  # pgvector 0.8+: keep scanning when a filter removes candidates
+            except Exception:
+                pass
+            rows = c.execute(sql, [qv, self.owner, self.model, *params, qv, k]).fetchall()
+        return [self._hit(r, i + 1, round(float(r[6]), 4)) for i, r in enumerate(rows)]
 
-    def _index(self) -> dict:
-        if self._bm25 is None:
-            got = self.store.get(include=["documents", "metadatas"])
-            toks = [tokens(t) for t in got["documents"]]
-            df: Counter = Counter()
-            for t in toks:
-                df.update(set(t))
-            self._bm25 = {"ids": got["ids"], "texts": got["documents"], "meta": got["metadatas"], "toks": toks, "df": df,
-                          "avg": (sum(map(len, toks)) / len(toks)) if toks else 0.0}
-        return self._bm25
-
-    def _keyword(self, q: str, k: int, flt: dict | None, k1: float = 1.5, b: float = 0.75) -> list[Hit]:
-        ix = self._index()
-        n, qt = len(ix["ids"]), tokens(q)
-        scored = []
-        for i, t in enumerate(ix["toks"]):
-            if not matches(ix["meta"][i], flt):
-                continue
-            tf = Counter(t)
-            s = 0.0
-            for w in set(qt):
-                if tf[w]:
-                    idf = math.log(1 + (n - ix["df"][w] + 0.5) / (ix["df"][w] + 0.5))
-                    s += idf * tf[w] * (k1 + 1) / (tf[w] + k1 * (1 - b + b * len(t) / (ix["avg"] or 1)))
-            if s > 0:
-                scored.append((s, i))
-        scored.sort(key=lambda x: -x[0])
-        m = ix["meta"]
-        return [Hit(ix["ids"][i], m[i]["doc_id"], m[i]["title"], ix["texts"][i], m[i], round(s, 4), r + 1) for r, (s, i) in enumerate(scored[:k])]
+    def _keyword(self, q: str, k: int, flt: dict | None) -> list[Hit]:
+        words = [w for w in _WORD.findall(q.lower()) if w != "or"]
+        if not words:
+            return []
+        params: list = []
+        cond = filter_sql(flt, params)
+        sql = (f"select id, doc_id, title, part, content, metadata, ts_rank_cd(tsv, query) as r from {self.table}, websearch_to_tsquery('english', %s) query "
+               f"where owner = %s and tsv @@ query and {cond} order by r desc, id limit %s")
+        with self.pool.connection() as c:
+            rows = c.execute(sql, [" or ".join(words), self.owner, *params, k]).fetchall()
+        return [self._hit(r, i + 1, None) for i, r in enumerate(rows)]
 
     def search(self, question: str, mode: str = "hybrid", k: int = 3, flt: dict | None = None) -> tuple[list[Hit], Timing]:
         if mode not in MODES:
@@ -201,6 +264,8 @@ class VectorLab:
         return round(sum(a * b for a, b in zip(q, d)), 4)
 
     def stats(self) -> dict:
-        col = self.store._collection
-        return {"vector_db": "Chroma", "index": "HNSW", "distance": "cosine", "embedding_model": MODEL, "dimensions": 384,
-                "chunks": col.count(), "documents": len(self.documents())}
+        with self.pool.connection() as c:
+            ver = c.execute("select extversion from pg_extension where extname = 'vector'").fetchone()[0]
+            size = c.execute(f"select pg_size_pretty(pg_total_relation_size('{self.table}'))").fetchone()[0]
+        return {"vector_db": "Postgres + pgvector", "pgvector_version": ver, "table": self.table, "index": "HNSW (m 16, ef_construction 64)", "ef_search": self.ef_search,
+                "distance": "cosine", "embedding_model": self.model, "dimensions": self.dim, "chunks": self.count(), "documents": len(self.documents()), "table_size": size}

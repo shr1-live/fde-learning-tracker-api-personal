@@ -4,3 +4,5 @@ data/
 __pycache__/
 .pytest_cache/
 results_run.log
+.env
+results_run*.log
