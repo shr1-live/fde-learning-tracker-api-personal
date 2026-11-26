@@ -1,0 +1,15 @@
+langchain
+langgraph
+langchain-text-splitters
+fastembed
+psycopg[binary]
+psycopg_pool
+pgvector
+python-dotenv
+fastapi
+uvicorn
+httpx
+numpy
+pytest
+# development only: a local Postgres 16 with pgvector without Docker (used when VECTOR_LAB_DB_URL is not set)
+pgserver
