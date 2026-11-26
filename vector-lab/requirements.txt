@@ -1,0 +1,11 @@
+langchain
+langgraph
+langchain-chroma
+langchain-community
+langchain-text-splitters
+fastembed
+fastapi
+uvicorn
+httpx
+pytest
+numpy
