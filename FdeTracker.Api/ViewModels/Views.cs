@@ -79,11 +79,12 @@ public sealed class FeedItemView
     public string TopicTitle { get; init; } = "";
     public string Author { get; init; } = "";
     public bool Recommended { get; init; }
+    public bool BatchOnly { get; init; }
 
     public static FeedItemView From(ContentRecord c) => new()
     {
         Id = c.Id, Title = c.Title, Summary = c.Summary, Kind = c.Kind, Url = c.Url, StackId = c.StackId,
-        ApprovedAt = c.ApprovedAt, Topic = c.Topic, TopicTitle = c.TopicTitle, Author = c.Author, Recommended = c.Recommended,
+        ApprovedAt = c.ApprovedAt, Topic = c.Topic, TopicTitle = c.TopicTitle, Author = c.Author, Recommended = c.Recommended, BatchOnly = c.BatchOnly,
     };
 }
 

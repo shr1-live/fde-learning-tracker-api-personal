@@ -19,5 +19,5 @@ public sealed class SubmissionReviewController(SubmissionReviewService reviews) 
     public async Task<IActionResult> Detail(Guid id) => Ok(await reviews.Detail(id));
 
     [HttpPost("{id:guid}")]
-    public async Task<IActionResult> Decide(Guid id, ReviewSubmissionRequest body) => Ok(await reviews.Decide(CurrentUser, id, body.Decision, body.Comment));
+    public async Task<IActionResult> Decide(Guid id, ReviewSubmissionRequest body) => Ok(await reviews.Decide(CurrentUser, id, body.Decision, body.Comment, body.Met, body.Total));
 }

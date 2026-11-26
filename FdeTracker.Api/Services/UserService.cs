@@ -24,8 +24,14 @@ public sealed class UserService(Db db, UserRepository users, BatchRepository bat
             }
             else
             {
-                var status = isAdmin || await users.ApprovedMemberCount(s) < options.FreeSeats ? "approved" : "pending";
+                var invite = isAdmin ? null : await s.First<(string Email, Guid? BatchId)?>("select email, batch_id from invites where email = @email and used_at is null", new { email });
+                var status = isAdmin || invite is not null || await users.ApprovedMemberCount(s) < options.FreeSeats ? "approved" : "pending";
                 user = await users.Insert(s, id, email, isAdmin ? "admin" : "member", status);
+                if (invite is not null)
+                {
+                    await s.Exec("update invites set used_at = now() where email = @email", new { email });
+                    if (invite.Value.BatchId is { } bid) user = (await s.First<AppUser>("update app_users set batch_id = @bid where id = @id returning *", new { id, bid }))!;
+                }
                 await audit.Record(s, id, "user.first_seen", id.ToString(), new { status });
             }
         }

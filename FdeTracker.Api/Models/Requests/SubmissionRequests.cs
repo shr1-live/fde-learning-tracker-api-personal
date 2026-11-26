@@ -36,5 +36,8 @@ public sealed class ReviewSubmissionRequest
 {
     string? _comment;
     [Required, RegularExpression("^(approve|request_changes)\\z")] public string Decision { get; set; } = "";
+    /// <summary>The reviewer's checklist: how many of the day's acceptance points were met, out of how many. Both or neither.</summary>
+    [Range(0, 50)] public int? Met { get; set; }
+    [Range(1, 50)] public int? Total { get; set; }
     [StringLength(2000)] public string? Comment { get => _comment; set => _comment = string.IsNullOrWhiteSpace(value) ? null : value.Trim(); }
 }
