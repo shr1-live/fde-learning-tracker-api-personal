@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 
 from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from .corpus import DOCS
@@ -15,6 +16,12 @@ from .engine import MODES, VectorLab
 from .graph import build, run
 
 app = FastAPI(title="FDE vector lab", version="1.0")
+
+# The portal page calls this service straight from the browser. Allowed origins: the local dev and preview servers and the live portal;
+# add more with VECTOR_LAB_CORS (comma separated). No cookies are used, so credentials stay off.
+_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:4173", "http://127.0.0.1:4173", "https://fde-learniing-tracker.vercel.app",
+            *[o.strip() for o in os.environ.get("VECTOR_LAB_CORS", "").split(",") if o.strip()]]
+app.add_middleware(CORSMiddleware, allow_origins=_ORIGINS, allow_methods=["GET", "POST", "DELETE"], allow_headers=["content-type", "x-api-key"], allow_credentials=False, max_age=600)
 _lab: VectorLab | None = None
 _graph = None
 
