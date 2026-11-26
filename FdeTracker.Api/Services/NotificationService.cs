@@ -56,7 +56,7 @@ public sealed class NotificationService(Db db, AppOptions options, IHttpClientFa
                 and (@only::uuid is null or u.id = @only::uuid)
                 and not exists (select 1 from daily_log l where l.user_id = u.id and l.log_date = @d::date and l.hours > 0)
             ), added as (
-              insert into notifications (user_id, kind, on_date, title, body, link)
+              insert into tracker_notifications (user_id, kind, on_date, title, body, link)
               select id, 'daily_log_missed', @d::date, 'Fill in your daily log',
                      'You have not logged any hours for ' || to_char(@d::date, 'Dy DD Mon') || '.', '/daily-log'
               from missed on conflict (user_id, kind, on_date, ref) do nothing
@@ -90,7 +90,7 @@ public sealed class NotificationService(Db db, AppOptions options, IHttpClientFa
                      (select count(*) from app_users u where u.access_status = 'approved' and u.role = 'member' and u.batch_id is not null
                         and not exists (select 1 from daily_log l where l.user_id = u.id and l.log_date >= @from::date and l.log_date < @to::date and l.hours > 0)) as silent
             ), added as (
-              insert into notifications (user_id, kind, on_date, title, body, link)
+              insert into tracker_notifications (user_id, kind, on_date, title, body, link)
               select a.id, 'weekly_digest', @to::date, 'Last week at a glance',
                      st.handed || ' days handed in, ' || st.approved || ' approved. ' || st.logged || ' learners logged hours, ' || st.silent || ' logged nothing.',
                      '/progress?tab=cohort'
@@ -112,7 +112,7 @@ public sealed class NotificationService(Db db, AppOptions options, IHttpClientFa
         var rows = await db.Tx(s => s.Query<Created>(
             $"""
             with who as (select {NameSql} as name from app_users u where u.id = @submitter), added as (
-              insert into notifications (user_id, kind, on_date, ref, title, body, link)
+              insert into tracker_notifications (user_id, kind, on_date, ref, title, body, link)
               select r.id, 'week_submitted', @w::date, @submitter::text,
                      left((select name from who) || ' submitted their week', 200),
                      left((select name from who) || ' submitted the daily log for the week of ' || to_char(@w::date, 'DD Mon') || '.', 1000),
@@ -140,7 +140,7 @@ public sealed class NotificationService(Db db, AppOptions options, IHttpClientFa
             using var req = new HttpRequestMessage(HttpMethod.Post, "https://api.resend.com/emails") { Content = JsonContent.Create(new { from, to = new[] { to }, subject, text }) };
             req.Headers.Authorization = new("Bearer", key);
             using var res = await http.CreateClient("email").SendAsync(req);
-            if (res.IsSuccessStatusCode) await db.Exec($"update notifications set emailed_at = now() where id = '{id}'");
+            if (res.IsSuccessStatusCode) await db.Exec($"update tracker_notifications set emailed_at = now() where id = '{id}'");
             else log.LogWarning("Notification email failed with {Status}", (int)res.StatusCode);
         }
         catch (Exception e) { log.LogWarning(e, "Notification email failed"); }
@@ -157,13 +157,13 @@ public sealed class NotificationService(Db db, AppOptions options, IHttpClientFa
         try { await RunReminders(user.Id); } catch (Exception e) { log.LogWarning(e, "Reminder catch-up failed"); } // catches up when the free server slept through 10:00
         return await db.Read(async s => new NotificationList
         {
-            Items = await s.Query<NotificationView>("select id, kind, to_char(on_date, 'YYYY-MM-DD') as on_date, title, body, link, created_at, (read_at is not null) as read from notifications where user_id = @id order by created_at desc, id desc limit 30", new { id = user.Id }),
-            Unread = await s.Scalar<int>("select count(*)::int from notifications where user_id = @id and read_at is null", new { id = user.Id }),
+            Items = await s.Query<NotificationView>("select id, kind, to_char(on_date, 'YYYY-MM-DD') as on_date, title, body, link, created_at, (read_at is not null) as read from tracker_notifications where user_id = @id order by created_at desc, id desc limit 30", new { id = user.Id }),
+            Unread = await s.Scalar<int>("select count(*)::int from tracker_notifications where user_id = @id and read_at is null", new { id = user.Id }),
         });
     }
 
-    public Task MarkRead(AppUser user, Guid id) => db.Read(s => s.Exec("update notifications set read_at = now() where id = @id and user_id = @u and read_at is null", new { id, u = user.Id }));
-    public Task MarkAllRead(AppUser user) => db.Read(s => s.Exec("update notifications set read_at = now() where user_id = @u and read_at is null", new { u = user.Id }));
+    public Task MarkRead(AppUser user, Guid id) => db.Read(s => s.Exec("update tracker_notifications set read_at = now() where id = @id and user_id = @u and read_at is null", new { id, u = user.Id }));
+    public Task MarkAllRead(AppUser user) => db.Read(s => s.Exec("update tracker_notifications set read_at = now() where user_id = @u and read_at is null", new { u = user.Id }));
 }
 
 /// <summary>Checks every few minutes whether reminders are due. Cheap when nothing is: the unique index makes repeats no-ops.</summary>
