@@ -62,7 +62,7 @@ public sealed class DailyLogService(Db db, AuditRepository audit, NotificationSe
                 new { userId, d = DateOnly.ParseExact(c.Date, "yyyy-MM-dd").ToDateTime(TimeOnly.MinValue), task = c.Task, hours = c.Hours, note = c.Note });
         await s.Exec("delete from daily_log_weeks where user_id = @userId and week_start = @a", new { userId, a });
         // logging hours for a day settles that day's reminder
-        await s.Exec("update notifications set read_at = now() where user_id = @userId and kind = 'daily_log_missed' and read_at is null and on_date = any(@dates)",
+        await s.Exec("update tracker_notifications set read_at = now() where user_id = @userId and kind = 'daily_log_missed' and read_at is null and on_date = any(@dates)",
             new { userId, dates = clean.Where(c => c.Hours > 0).Select(c => DateOnly.ParseExact(c.Date, "yyyy-MM-dd").ToDateTime(TimeOnly.MinValue)).Distinct().ToArray() });
         return await Load(s, userId, monday);
     });

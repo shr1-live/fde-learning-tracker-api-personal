@@ -47,8 +47,8 @@ public sealed class NotificationTests(ApiFixture api) : IClassFixture<ApiFixture
         await api.Count($"with x as (insert into daily_log (user_id, log_date, task, hours) values ('{M2.Id}', '{tue}', 'RAG', 2) returning 1) select count(*) from x");
         Assert.Equal(1, await service.RunReminders(nowUtc: now));
         Assert.Equal(0, await service.RunReminders(nowUtc: now));   // repeating the run sends nothing twice
-        Assert.Equal(1, await api.Count($"select count(*) from notifications where user_id = '{M1.Id}' and kind = 'daily_log_missed' and on_date = '{tue}'"));
-        Assert.Equal(0, await api.Count($"select count(*) from notifications where user_id = '{M2.Id}'"));
+        Assert.Equal(1, await api.Count($"select count(*) from tracker_notifications where user_id = '{M1.Id}' and kind = 'daily_log_missed' and on_date = '{tue}'"));
+        Assert.Equal(0, await api.Count($"select count(*) from tracker_notifications where user_id = '{M2.Id}'"));
 
         var mine = (await api.Call("GET", "/api/notifications", M1)).Body;
         Assert.Equal(1, (int)mine["unread"]!);
@@ -83,7 +83,7 @@ public sealed class NotificationTests(ApiFixture api) : IClassFixture<ApiFixture
         // a resubmission shows as new again, but there is still one row per reviewer
         Assert.Equal(200, (await api.Call("POST", $"/api/daily-log/{monday}/submit", M2)).Status);
         Assert.Equal(1, (int)(await api.Call("GET", "/api/notifications", R)).Body["unread"]!);
-        Assert.Equal(1, await api.Count($"select count(*) from notifications where user_id = '{R.Id}' and kind = 'week_submitted'"));
+        Assert.Equal(1, await api.Count($"select count(*) from tracker_notifications where user_id = '{R.Id}' and kind = 'week_submitted'"));
     }
 
     [Fact]
