@@ -1,0 +1,416 @@
+{
+ "model": "BAAI/bge-small-en-v1.5",
+ "documents": 12,
+ "chunks": 17,
+ "questions": 20,
+ "generator": "extractive (no language model) unless a row says LLM",
+ "configs": [
+  {
+   "name": "C0 baseline",
+   "mode": "semantic",
+   "k": 3,
+   "filter": false,
+   "gate": null,
+   "rerank_from": null,
+   "answerable": 16,
+   "not_in_documents": 4,
+   "hit": 93.8,
+   "mrr": 0.823,
+   "context_precision": 39.6,
+   "context_recall": 93.8,
+   "answer_correct": 68.8,
+   "grounded": 100.0,
+   "citation_ok": 75.0,
+   "false_refusals": 0,
+   "refused_correctly": 2,
+   "hallucinated": 2,
+   "answer_relevance": 0.697,
+   "context_relevance": 0.658,
+   "retrieve_ms_p50": 49.8,
+   "generate_ms_p50": 0.3,
+   "prompt_tokens": 0,
+   "output_tokens": 0,
+   "failures": [
+    {
+     "q": "When can I appeal my performance score?",
+     "kind": "paraphrase",
+     "failure": "generation failure (the fact was retrieved but not in the answer)",
+     "answer": "Performance reviews take place twice a year, in June and in December. [1]",
+     "top": [
+      "performance-all-2025",
+      "expense-all-2025",
+      "onboarding-all-2025"
+     ]
+    },
+    {
+     "q": "Which days are people expected to be in the office?",
+     "kind": "paraphrase",
+     "failure": "retrieval failure (the fact is not in the retrieved text)",
+     "answer": "Bridge days are announced by the people team in January. [2]",
+     "top": [
+      "holidays-uk-2026",
+      "leave-de-2025",
+      "leave-uk-2025"
+     ]
+    },
+    {
+     "q": "How many days of paid annual leave do I get?",
+     "kind": "filtered",
+     "failure": "generation failure (the fact was retrieved but not in the answer)",
+     "answer": "Every full-time UK employee gets 24 days of paid annual leave per calendar year. [1]",
+     "top": [
+      "leave-uk-2025",
+      "leave-uk-2024",
+      "leave-de-2025"
+     ]
+    },
+    {
+     "q": "How many days a week can I work remotely?",
+     "kind": "filtered",
+     "failure": "generation failure (the fact was retrieved but not in the answer)",
+     "answer": "Employees may work remotely up to 3 days a week after completing their probation period of 3 months. [1]",
+     "top": [
+      "remote-all-2025",
+      "remote-de-2025",
+      "leave-uk-2025"
+     ]
+    },
+    {
+     "q": "When does a medical certificate become necessary?",
+     "kind": "multi",
+     "failure": "generation failure (the fact was retrieved but not in the answer)",
+     "answer": "A medical certificate is needed when sick leave lasts more than 2 consecutive days. [1]",
+     "top": [
+      "leave-uk-2025",
+      "leave-uk-2024",
+      "leave-de-2025"
+     ]
+    },
+    {
+     "q": "How much is the annual bonus?",
+     "kind": "out_of_scope",
+     "failure": "hallucination (answered a question the documents do not cover)",
+     "answer": "Every full-time UK employee gets 24 days of paid annual leave per calendar year. [1]",
+     "top": [
+      "leave-uk-2025",
+      "leave-uk-2024",
+      "travel-us-2025"
+     ]
+    },
+    {
+     "q": "How many days of paid maternity leave do I get in the US?",
+     "kind": "out_of_scope",
+     "failure": "hallucination (answered a question the documents do not cover)",
+     "answer": "Every full-time UK employee gets 24 days of paid annual leave per calendar year. [1]",
+     "top": [
+      "leave-uk-2025",
+      "leave-uk-2024",
+      "leave-de-2025"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "C1 + filter",
+   "mode": "semantic",
+   "k": 3,
+   "filter": true,
+   "gate": null,
+   "rerank_from": null,
+   "answerable": 16,
+   "not_in_documents": 4,
+   "hit": 93.8,
+   "mrr": 0.938,
+   "context_precision": 52.1,
+   "context_recall": 93.8,
+   "answer_correct": 87.5,
+   "grounded": 100.0,
+   "citation_ok": 93.8,
+   "false_refusals": 0,
+   "refused_correctly": 2,
+   "hallucinated": 2,
+   "answer_relevance": 0.692,
+   "context_relevance": 0.63,
+   "retrieve_ms_p50": 47.5,
+   "generate_ms_p50": 0.3,
+   "prompt_tokens": 0,
+   "output_tokens": 0,
+   "failures": [
+    {
+     "q": "When can I appeal my performance score?",
+     "kind": "paraphrase",
+     "failure": "generation failure (the fact was retrieved but not in the answer)",
+     "answer": "Performance reviews take place twice a year, in June and in December. [1]",
+     "top": [
+      "performance-all-2025",
+      "expense-all-2025",
+      "onboarding-all-2025"
+     ]
+    },
+    {
+     "q": "Which days are people expected to be in the office?",
+     "kind": "paraphrase",
+     "failure": "retrieval failure (the fact is not in the retrieved text)",
+     "answer": "Bridge days are announced by the people team in January. [2]",
+     "top": [
+      "holidays-uk-2026",
+      "leave-de-2025",
+      "leave-uk-2025"
+     ]
+    },
+    {
+     "q": "How much is the annual bonus?",
+     "kind": "out_of_scope",
+     "failure": "hallucination (answered a question the documents do not cover)",
+     "answer": "Every full-time UK employee gets 24 days of paid annual leave per calendar year. [1]",
+     "top": [
+      "leave-uk-2025",
+      "leave-uk-2024",
+      "travel-us-2025"
+     ]
+    },
+    {
+     "q": "How many days of paid maternity leave do I get in the US?",
+     "kind": "out_of_scope",
+     "failure": "hallucination (answered a question the documents do not cover)",
+     "answer": "Claims are paid within 30 days. [1]",
+     "top": [
+      "travel-us-2025"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "C2 + hybrid",
+   "mode": "hybrid",
+   "k": 3,
+   "filter": true,
+   "gate": null,
+   "rerank_from": null,
+   "answerable": 16,
+   "not_in_documents": 4,
+   "hit": 93.8,
+   "mrr": 0.906,
+   "context_precision": 52.1,
+   "context_recall": 93.8,
+   "answer_correct": 87.5,
+   "grounded": 100.0,
+   "citation_ok": 93.8,
+   "false_refusals": 0,
+   "refused_correctly": 1,
+   "hallucinated": 3,
+   "answer_relevance": 0.678,
+   "context_relevance": 0.623,
+   "retrieve_ms_p50": 47.8,
+   "generate_ms_p50": 0.3,
+   "prompt_tokens": 0,
+   "output_tokens": 0,
+   "failures": [
+    {
+     "q": "When can I appeal my performance score?",
+     "kind": "paraphrase",
+     "failure": "generation failure (the fact was retrieved but not in the answer)",
+     "answer": "Performance reviews take place twice a year, in June and in December. [1]",
+     "top": [
+      "performance-all-2025",
+      "expense-all-2025",
+      "onboarding-all-2025"
+     ]
+    },
+    {
+     "q": "Which days are people expected to be in the office?",
+     "kind": "paraphrase",
+     "failure": "retrieval failure (the fact is not in the retrieved text)",
+     "answer": "Bridge days are announced by the people team in January. [3]",
+     "top": [
+      "holidays-uk-2026",
+      "leave-uk-2024",
+      "leave-de-2025"
+     ]
+    },
+    {
+     "q": "What is the company dress code?",
+     "kind": "out_of_scope",
+     "failure": "hallucination (answered a question the documents do not cover)",
+     "answer": "Company laptops must use full disk encryption and lock automatically after 5 minutes. [1]",
+     "top": [
+      "remote-all-2025",
+      "remote-all-2025",
+      "procurement-all-2025"
+     ]
+    },
+    {
+     "q": "How much is the annual bonus?",
+     "kind": "out_of_scope",
+     "failure": "hallucination (answered a question the documents do not cover)",
+     "answer": "Every full-time UK employee gets 24 days of paid annual leave per calendar year. [1]",
+     "top": [
+      "leave-uk-2025",
+      "leave-uk-2024",
+      "leave-de-2025"
+     ]
+    },
+    {
+     "q": "How many days of paid maternity leave do I get in the US?",
+     "kind": "out_of_scope",
+     "failure": "hallucination (answered a question the documents do not cover)",
+     "answer": "Claims are paid within 30 days. [1]",
+     "top": [
+      "travel-us-2025"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "C3 + gate 0.60",
+   "mode": "hybrid",
+   "k": 3,
+   "filter": true,
+   "gate": 0.6,
+   "rerank_from": null,
+   "answerable": 16,
+   "not_in_documents": 4,
+   "hit": 93.8,
+   "mrr": 0.906,
+   "context_precision": 52.1,
+   "context_recall": 93.8,
+   "answer_correct": 81.2,
+   "grounded": 100.0,
+   "citation_ok": 87.5,
+   "false_refusals": 1,
+   "refused_correctly": 3,
+   "hallucinated": 1,
+   "answer_relevance": 0.699,
+   "context_relevance": 0.623,
+   "retrieve_ms_p50": 60.4,
+   "generate_ms_p50": 0.3,
+   "prompt_tokens": 0,
+   "output_tokens": 0,
+   "failures": [
+    {
+     "q": "When can I appeal my performance score?",
+     "kind": "paraphrase",
+     "failure": "generation failure (the fact was retrieved but not in the answer)",
+     "answer": "Performance reviews take place twice a year, in June and in December. [1]",
+     "top": [
+      "performance-all-2025",
+      "expense-all-2025",
+      "onboarding-all-2025"
+     ]
+    },
+    {
+     "q": "Which days are people expected to be in the office?",
+     "kind": "paraphrase",
+     "failure": "retrieval failure (the fact is not in the retrieved text)",
+     "answer": "Bridge days are announced by the people team in January. [3]",
+     "top": [
+      "holidays-uk-2026",
+      "leave-uk-2024",
+      "leave-de-2025"
+     ]
+    },
+    {
+     "q": "When does a medical certificate become necessary?",
+     "kind": "multi",
+     "failure": "false refusal (the gate or the retrieval returned nothing)",
+     "answer": "I could not find this in the approved documents.",
+     "top": [
+      "leave-de-2025",
+      "remote-de-2025",
+      "leave-de-2025"
+     ]
+    },
+    {
+     "q": "How many days of paid maternity leave do I get in the US?",
+     "kind": "out_of_scope",
+     "failure": "hallucination (answered a question the documents do not cover)",
+     "answer": "Claims are paid within 30 days. [1]",
+     "top": [
+      "travel-us-2025"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "C4 + rerank 10 to 3",
+   "mode": "semantic",
+   "k": 3,
+   "filter": true,
+   "gate": null,
+   "rerank_from": 10,
+   "answerable": 16,
+   "not_in_documents": 4,
+   "hit": 100.0,
+   "mrr": 0.927,
+   "context_precision": 52.1,
+   "context_recall": 100.0,
+   "answer_correct": 87.5,
+   "grounded": 100.0,
+   "citation_ok": 93.8,
+   "false_refusals": 0,
+   "refused_correctly": 1,
+   "hallucinated": 3,
+   "answer_relevance": 0.678,
+   "context_relevance": 0.623,
+   "retrieve_ms_p50": 1027.2,
+   "generate_ms_p50": 0.2,
+   "prompt_tokens": 0,
+   "output_tokens": 0,
+   "failures": [
+    {
+     "q": "When can I appeal my performance score?",
+     "kind": "paraphrase",
+     "failure": "generation failure (the fact was retrieved but not in the answer)",
+     "answer": "Performance reviews take place twice a year, in June and in December. [1]",
+     "top": [
+      "performance-all-2025",
+      "expense-all-2025",
+      "holidays-uk-2026"
+     ]
+    },
+    {
+     "q": "Which days are people expected to be in the office?",
+     "kind": "paraphrase",
+     "failure": "generation failure (the fact was retrieved but not in the answer)",
+     "answer": "Bridge days are announced by the people team in January. [2]",
+     "top": [
+      "holidays-uk-2026",
+      "leave-de-2025",
+      "remote-all-2025"
+     ]
+    },
+    {
+     "q": "What is the company dress code?",
+     "kind": "out_of_scope",
+     "failure": "hallucination (answered a question the documents do not cover)",
+     "answer": "Company laptops must use full disk encryption and lock automatically after 5 minutes. [3]",
+     "top": [
+      "incident-all-2025",
+      "leave-uk-2024",
+      "remote-all-2025"
+     ]
+    },
+    {
+     "q": "How much is the annual bonus?",
+     "kind": "out_of_scope",
+     "failure": "hallucination (answered a question the documents do not cover)",
+     "answer": "Every full-time UK employee gets 24 days of paid annual leave per calendar year. [2]",
+     "top": [
+      "onboarding-all-2025",
+      "leave-uk-2025",
+      "travel-us-2025"
+     ]
+    },
+    {
+     "q": "How many days of paid maternity leave do I get in the US?",
+     "kind": "out_of_scope",
+     "failure": "hallucination (answered a question the documents do not cover)",
+     "answer": "Claims are paid within 30 days. [1]",
+     "top": [
+      "travel-us-2025"
+     ]
+    }
+   ]
+  }
+ ]
+}

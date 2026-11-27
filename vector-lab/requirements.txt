@@ -11,5 +11,7 @@ uvicorn
 httpx
 numpy
 pytest
+pypdf
+python-docx
 # development only: a local Postgres 16 with pgvector without Docker (used when VECTOR_LAB_DB_URL is not set)
 pgserver
