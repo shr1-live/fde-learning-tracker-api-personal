@@ -11,6 +11,7 @@ feature/week2-day3-vector-chroma-local).
 """
 from __future__ import annotations
 
+import copy
 import re
 import time
 from dataclasses import dataclass
@@ -168,6 +169,12 @@ class VectorLab:
             c.execute(f"create index if not exists {t}_meta on {t} using gin (metadata jsonb_path_ops)")
             c.execute(f"create index if not exists {t}_owner_doc on {t} (owner, doc_id)")
             c.execute(f"alter table {t} enable row level security")  # no policy: only this service's own connection can read or write
+
+    def for_owner(self, owner: str) -> "VectorLab":
+        """The same store (one connection pool, one embedding model) acting for another owner. Every query is scoped to `owner`."""
+        clone = copy.copy(self)
+        clone.owner = owner
+        return clone
 
     def close(self) -> None:
         self.pool.close()

@@ -4,14 +4,20 @@ Set VECTOR_LAB_KEY to require the header  X-Api-Key.  The database is VECTOR_LAB
 """
 from __future__ import annotations
 
+import base64
+import binascii
+import hmac
 import os
+from pathlib import Path
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from .assistant import MAX_BYTES, Assistant, AssistantError, Caller, RequestLog, load_users, new_request_id
 from .corpus import DOCS
-from .db import database_url
+from .db import ROOT, database_url
 from .engine import MODES, VectorLab
 from .graph import build, run
 
@@ -24,6 +30,43 @@ _ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:
 app.add_middleware(CORSMiddleware, allow_origins=_ORIGINS, allow_methods=["GET", "POST", "DELETE"], allow_headers=["content-type", "x-api-key"], allow_credentials=False, max_age=600)
 _lab: VectorLab | None = None
 _graph = None
+_assistant: Assistant | None = None
+
+
+@app.middleware("http")
+async def request_id(request: Request, call_next):
+    """Every request gets an id, returned in the X-Request-Id header and written to the log, so one call can be traced end to end."""
+    request.state.request_id = new_request_id()
+    response = await call_next(request)
+    response.headers["X-Request-Id"] = request.state.request_id
+    return response
+
+
+@app.exception_handler(AssistantError)
+async def assistant_error(request: Request, e: AssistantError):
+    return JSONResponse({"error": {"code": e.code, "message": e.message, "request_id": getattr(request.state, "request_id", "")}}, status_code=e.status)
+
+
+def assistant() -> Assistant:
+    global _assistant
+    if _assistant is None:
+        _assistant = Assistant(lab(), RequestLog(ROOT / "data" / "requests.jsonl"))
+    return _assistant
+
+
+def identify(x_api_key: str | None = Header(default=None)) -> Caller:
+    """Who is calling. With VECTOR_LAB_USERS set, the key must belong to a user (constant-time comparison). Without it, the service runs in
+    single-user local mode (optionally protected by VECTOR_LAB_KEY)."""
+    users = load_users()
+    if users is None:
+        want = os.environ.get("VECTOR_LAB_KEY")
+        if want and not hmac.compare_digest((x_api_key or "").encode(), want.encode()):
+            raise AssistantError(401, "unauthorized", "Missing or wrong X-Api-Key.")
+        return Caller("local", (), admin=True)
+    for key, caller in users.items():
+        if hmac.compare_digest((x_api_key or "").encode(), key.encode()):
+            return caller
+    raise AssistantError(401, "unauthorized", "Missing or wrong X-Api-Key.")
 
 
 def lab() -> VectorLab:
@@ -103,3 +146,74 @@ def search(body: SearchIn):
         raise HTTPException(400, str(e))
     return {"enough_evidence": s["enough_evidence"], "filter": s["applied_filter"], "timing_ms": s["timing"].search_ms, "trace": s["trace"],
             "hits": [{"rank": h.rank, "doc_id": h.doc_id, "title": h.title, "score": h.score, "similarity": h.sem, "metadata": h.metadata, "text": h.text} for h in s["hits"]]}
+
+
+# ---------------------------------------------------------------- Day 5: the document assistant
+class UploadIn(BaseModel):
+    filename: str = Field(min_length=3, max_length=200)
+    content_base64: str = Field(min_length=4)
+    department: str | None = None
+    region: str = Field(default="All", max_length=30)
+    year: int = Field(default=2025, ge=1990, le=2100)
+    visibility: str = "department"
+
+
+class Turn(BaseModel):
+    role: str
+    content: str = Field(max_length=2000)
+
+
+class AskIn(BaseModel):
+    question: str = Field(min_length=2, max_length=500)
+    history: list[Turn] = Field(default_factory=list, max_length=20)
+    k: int = Field(default=3, ge=1, le=10)
+    mode: str = "hybrid"
+    min_score: float = Field(default=0.60, ge=0.0, le=1.0)
+    filter: dict | None = None
+
+
+@app.get("/assistant/me")
+def me(caller: Caller = Depends(identify)):
+    return {"owner": caller.owner, "departments": list(caller.departments), "admin": caller.admin}
+
+
+@app.post("/assistant/upload")
+def upload(body: UploadIn, request: Request, caller: Caller = Depends(identify)):
+    if len(body.content_base64) > MAX_BYTES * 4 // 3 + 16:
+        raise AssistantError(413, "too_large", f"The file is larger than {MAX_BYTES // 1_000_000} MB.")
+    try:
+        data = base64.b64decode(body.content_base64, validate=True)
+    except (binascii.Error, ValueError):
+        raise AssistantError(400, "bad_encoding", "content_base64 is not valid base64.")
+    return assistant().upload(caller, body.filename, data, body.department, body.region, body.year, body.visibility, request.state.request_id)
+
+
+@app.post("/assistant/sample")
+def assistant_sample(request: Request, caller: Caller = Depends(identify)):
+    if not caller.admin:
+        raise AssistantError(403, "admin_only", "Only an admin can load the sample documents.")
+    lab_ = assistant().lab.for_owner(caller.owner)
+    n = sum(lab_.ingest(d.doc_id, d.title, d.body, department=d.department, region=d.region, year=d.year, visibility="department", flagged=False, source_file=d.doc_id)
+            for d in DOCS)
+    assistant().log.record(request_id=request.state.request_id, owner=caller.owner, endpoint="sample", outcome="ok", chunks=n)
+    return {"documents": len(DOCS), "chunks": n}
+
+
+@app.get("/assistant/documents")
+def assistant_documents(caller: Caller = Depends(identify)):
+    return assistant().documents(caller)
+
+
+@app.delete("/assistant/documents/{doc_id}")
+def assistant_delete(doc_id: str, request: Request, caller: Caller = Depends(identify)):
+    return {"removed_chunks": assistant().delete(caller, doc_id, request.state.request_id)}
+
+
+@app.post("/assistant/ask")
+def assistant_ask(body: AskIn, request: Request, caller: Caller = Depends(identify)):
+    return assistant().ask(caller, body.question, [t.model_dump() for t in body.history], body.k, body.mode, body.min_score, body.filter, request.state.request_id)
+
+
+@app.get("/assistant/log")
+def assistant_log(n: int = 20, caller: Caller = Depends(identify)):
+    return assistant().log.recent(caller.owner, max(1, min(n, 100)))

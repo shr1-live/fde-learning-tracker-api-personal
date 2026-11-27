@@ -1,0 +1,42 @@
+{
+ "C0 baseline": {
+  "hit": 93.8,
+  "mrr": 0.823,
+  "context_precision": 39.6,
+  "context_recall": 93.8,
+  "answer_correct": 68.8,
+  "citation_ok": 75.0
+ },
+ "C1 + filter": {
+  "hit": 93.8,
+  "mrr": 0.938,
+  "context_precision": 52.1,
+  "context_recall": 93.8,
+  "answer_correct": 87.5,
+  "citation_ok": 93.8
+ },
+ "C2 + hybrid": {
+  "hit": 93.8,
+  "mrr": 0.906,
+  "context_precision": 52.1,
+  "context_recall": 93.8,
+  "answer_correct": 87.5,
+  "citation_ok": 93.8
+ },
+ "C3 + gate 0.60": {
+  "hit": 93.8,
+  "mrr": 0.906,
+  "context_precision": 52.1,
+  "context_recall": 93.8,
+  "answer_correct": 81.2,
+  "citation_ok": 87.5
+ },
+ "C4 + rerank 10 to 3": {
+  "hit": 100.0,
+  "mrr": 0.927,
+  "context_precision": 52.1,
+  "context_recall": 100.0,
+  "answer_correct": 87.5,
+  "citation_ok": 93.8
+ }
+}
