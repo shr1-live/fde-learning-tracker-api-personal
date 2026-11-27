@@ -2,7 +2,7 @@
 
 **Task:** a working document assistant that accepts uploaded documents, answers with citations, refuses when the documents do not say, supports follow-up questions, enforces who may read what, logs requests, and has functional and security tests.
 
-Code: `vector-lab/app/assistant.py` (logic), `vector-lab/app/server.py` (HTTP), `vector-lab/tests/test_assistant.py` (18 tests), portal tab `Practice lab > Ask your documents` (`src/pages/DocQA.tsx` in the web repo). Debugging guide: `vector-lab/DEBUGGING.md`.
+Code: `vector-lab/app/assistant.py` (logic), `vector-lab/app/server.py` (HTTP), `vector-lab/tests/test_assistant.py` (18 tests), portal tab `Practice lab > Ask your documents` (`src/pages/DocQA.tsx` in the web repo). Debugging guide: `vector-lab/DEBUGGING.md`. Step-by-step notebook: `docs/notebooks/week2-day5-document-assistant.ipynb` (runs the real file-reading, screening, access and follow-up code on an in-memory store; its code cells were run on my computer, not opened in Colab itself).
 
 Built on the Day 3 store (Postgres + pgvector) and the Day 4 pipeline. Tested on a local Postgres 16 with pgvector. **Not tested on Supabase. Not deployed.**
 
